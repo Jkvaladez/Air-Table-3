@@ -179,6 +179,7 @@
     let allMachines = [];
     let allConsumables = [];
     let allMaintenanceLogs = [];
+    let consumableToMachineMap = new Map();
     let currentPage = 'dashboard';
     let expandedCards = new Set();
     let machinesToRenderCount = 10;
@@ -311,13 +312,6 @@
                 </div>
             </section>
 
-            <section id="low-stock-alerts-container" class="bg-red-50 p-4 sm:p-6 rounded-xl shadow-lg hidden">
-                <h2 class="text-2xl font-bold text-red-700 mb-4 flex items-center">
-                    Low Stock Alerts
-                </h2>
-                <div id="low-stock-list" class="space-y-3"></div>
-            </section>
-
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
                     <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Machines</h2>
@@ -338,7 +332,6 @@
         
         attachMachinesViewListeners();
         filterAndRenderMachines();
-        renderLowStockAlerts();
     }
 
     /**
@@ -411,6 +404,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used On</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumable ID</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/Unit</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
@@ -593,27 +587,6 @@
         renderMachineCards(filteredMachines);
     }
     
-    function renderLowStockAlerts() {
-        const lowStockConsumables = allConsumables.filter(c => c.fields['Stock Status'] === 'Low Stock');
-        const container = document.getElementById('low-stock-alerts-container');
-        const list = document.getElementById('low-stock-list');
-
-        if (list && lowStockConsumables.length > 0) {
-            container.classList.remove('hidden');
-            list.innerHTML = lowStockConsumables.map(c => `
-                <div class="bg-red-100 p-3 rounded-lg flex justify-between items-center text-sm">
-                    <p class="text-red-800">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>
-                        <strong>${c.fields['Name'] || 'Unnamed'}</strong> is low on stock (${c.fields['Current Stock']}/${c.fields['Reorder Point']}).
-                    </p>
-                    <button class="text-blue-600 hover:underline font-semibold" onclick="navigateTo('consumables')">View</button>
-                </div>
-            `).join('');
-        } else if (container) {
-            container.classList.add('hidden');
-        }
-    }
-
     // --- MODAL FUNCTIONS ---
 
     function showConsumablesModal(machineRecordId) {
@@ -633,10 +606,10 @@
         const cardView = document.getElementById('modal-consumables-card-view');
         if (!tableBody || !cardView) return;
 
-        const contentHtml = consumables.map(c => getConsumableRowHtml(c.fields)).join('');
-        tableBody.innerHTML = contentHtml || `<tr><td colspan="9" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
+        const contentHtml = consumables.map(c => getConsumableRowHtml(c)).join('');
+        tableBody.innerHTML = contentHtml || `<tr><td colspan="10" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
         
-        const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
+        const cardHtml = consumables.map(c => getConsumableCardHtml(c)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables linked to this machine.</p>`;
     }
 
@@ -708,11 +681,12 @@
     function renderAllConsumables(consumables) {
         const tableBody = document.getElementById('consumables-table-body');
         if (!tableBody) return;
-        const tableHtml = consumables.map(c => getConsumableRowHtml(c.fields)).join('');
-        tableBody.innerHTML = tableHtml || `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`;
+        const tableHtml = consumables.map(c => getConsumableRowHtml(c)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="10" class="text-center py-4">No consumables found.</td></tr>`;
     }
 
-    function getConsumableRowHtml(fields) {
+    function getConsumableRowHtml(record) {
+        const fields = record.fields;
         const stockStatus = fields['Stock Status'];
         let rowClass = '';
         let statusTextClass = '';
@@ -724,9 +698,13 @@
             statusTextClass = 'text-yellow-700 font-semibold';
         }
 
+        const usedOnMachines = consumableToMachineMap.get(record.id) || [];
+        const usedOnHtml = usedOnMachines.join(', ');
+
         return `
             <tr class="${rowClass}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${usedOnHtml || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
@@ -738,7 +716,8 @@
             </tr>`;
     }
 
-    function getConsumableCardHtml(fields) {
+    function getConsumableCardHtml(record) {
+        const fields = record.fields;
         const stockStatus = fields['Stock Status'];
         let statusClass = '';
         if (stockStatus === 'Out of Stock') statusClass = 'bg-red-200 text-red-800';
@@ -830,6 +809,23 @@
             </div>`;
     }
 
+    function buildConsumableToMachineMap() {
+        consumableToMachineMap.clear();
+        allMachines.forEach(machine => {
+            const machineId = machine.fields['Machine ID'];
+            const consumableIds = machine.fields.Consumables;
+
+            if (machineId && consumableIds && Array.isArray(consumableIds)) {
+                consumableIds.forEach(consumableId => {
+                    if (!consumableToMachineMap.has(consumableId)) {
+                        consumableToMachineMap.set(consumableId, []);
+                    }
+                    consumableToMachineMap.get(consumableId).push(machineId);
+                });
+            }
+        });
+    }
+
     // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
 
     async function initializeApp() {
@@ -841,7 +837,6 @@
             </div>`;
 
         try {
-            // Fetch data from all relevant tables concurrently
             const [
                 machines, 
                 consumables, 
@@ -856,11 +851,12 @@
                 fetchAirtableData('BSV Maintenance Logs')
             ]);
 
-            // Merge the data from the different tables
             allMachines = machines;
             allConsumables = consumables.concat(bsvConsumables);
             allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
             
+            buildConsumableToMachineMap();
+
             const savedExpanded = localStorage.getItem('expandedCards');
             if (savedExpanded) {
                 expandedCards = new Set(JSON.parse(savedExpanded));
