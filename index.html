@@ -142,7 +142,7 @@
                     </tbody>
                 </table>
             </div>
-            <div id="consumables-card-view" class="block sm:hidden space-y-4 mt-4">
+            <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4">
                 <!-- Consumable cards will be dynamically inserted here -->
             </div>
         </div>
@@ -494,7 +494,7 @@
                 const recordId = record.id;
                 const card = document.createElement('div');
                 card.id = `card-${recordId}`;
-                card.className = 'bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col';
+                card.className = 'bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col transform hover:scale-[1.01] transition-transform duration-200';
                 
                 let statusBadge = '';
                 const machineStatus = fields['Machine Status'];
@@ -573,8 +573,8 @@
          * Renders the consumable records as table rows.
          * @param {Array} records - The list of Airtable records to render.
          */
-        function renderConsumablesTable(records) {
-            const container = document.getElementById('consumables-table-body');
+        function renderConsumablesTable(records, containerId) {
+            const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
             if (records.length === 0) {
@@ -589,8 +589,8 @@
                 const stockStatus = fields['Stock Status'];
                 if (stockStatus === 'Low Stock') {
                     rowClass += ' bg-red-100 text-red-900';
-                } else {
-                    rowClass += ' bg-white text-gray-800';
+                } else if (stockStatus === 'Out of Stock') {
+                    rowClass += ' bg-red-200 text-red-900';
                 }
                 row.className = rowClass;
                 let costValue = fields['Cost/Unit'];
@@ -613,11 +613,56 @@
         }
         
         /**
+         * Renders consumable records as cards for mobile/modal view.
+         * @param {Array} records - The list of Airtable records.
+         * @param {string} containerId - The ID of the container element.
+         */
+        function renderModalConsumables(records, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (records.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500 py-4">No consumables found.</p>`;
+                return;
+            }
+
+            records.forEach(record => {
+                const fields = record.fields;
+                const card = document.createElement('div');
+                let cardClass = 'p-4 rounded-lg shadow-sm';
+                const stockStatus = fields['Stock Status'];
+                if (stockStatus === 'Low Stock') {
+                    cardClass += ' bg-red-100 text-red-900';
+                } else if (stockStatus === 'Out of Stock') {
+                     cardClass += ' bg-red-200 text-red-900';
+                } else {
+                    cardClass += ' bg-gray-50 text-gray-800';
+                }
+                card.className = cardClass;
+
+                let costValue = fields['Cost/Unit'];
+                let formattedCost = costValue !== undefined ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(costValue) : 'N/A';
+                const linkValue = fields['Link'];
+                const formattedLink = linkValue ? `<a href="${linkValue}" target="_blank" class="text-blue-600 hover:underline">View Link</a>` : 'N/A';
+                
+                card.innerHTML = `
+                    <h3 class="text-lg font-semibold">${fields['Name'] || 'N/A'}</h3>
+                    <p class="text-sm"><strong>Consumable ID:</strong> ${fields['Consumable ID'] || 'N/A'}</p>
+                    <p class="text-sm"><strong>Cost/Unit:</strong> ${formattedCost}</p>
+                    <p class="text-sm"><strong>Stock Status:</strong> ${stockStatus || 'N/A'}</p>
+                    <p class="text-sm"><strong>Current Stock:</strong> ${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</p>
+                    <div class="mt-2">${formattedLink}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        /**
          * Renders the maintenance logs in a table.
          * @param {Array} records - The list of maintenance log records.
          */
-        function renderMaintenanceLogsTable(records) {
-            const container = document.getElementById('maintenance-logs-table-body');
+        function renderMaintenanceLogsTable(records, containerId) {
+            const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
             
@@ -666,6 +711,58 @@
                 `;
                 
                 container.appendChild(row);
+            });
+        }
+        
+        /**
+         * Renders maintenance logs as cards for mobile/modal view.
+         * @param {Array} records - The list of Airtable records.
+         * @param {string} containerId - The ID of the container element.
+         */
+        function renderModalMaintenanceLogs(records, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (records.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500 py-4">No maintenance logs found.</p>`;
+                return;
+            }
+
+            records.forEach(record => {
+                const fields = record.fields;
+                const card = document.createElement('div');
+                let cardClass = 'p-4 rounded-lg shadow-sm';
+
+                const consumableId = fields['Consumable Part'] ? fields['Consumable Part'][0] : null;
+                const consumableName = consumableId ? dataCache[consumableId]?.Name || 'Unknown Consumable' : 'N/A';
+                const machineId = fields['Machine'] ? dataCache[fields['Machine'][0]]?.['Machine ID'] || 'Unknown Machine' : 'N/A';
+                
+                const lastReplaced = formatDate(fields['Last Replaced']);
+                const nextServiceDue = formatDate(fields['Next Service Due']);
+                
+                let statusText = 'On Schedule';
+                let statusColor = 'text-green-600';
+                let cardColor = 'bg-gray-50';
+                
+                const today = new Date();
+                if (fields['Next Service Due']) {
+                    const nextServiceDate = new Date(fields['Next Service Due']);
+                    if (nextServiceDate < today) {
+                        statusText = '⚠️ Overdue';
+                        statusColor = 'text-red-600';
+                        cardColor = 'bg-red-100';
+                    }
+                }
+                
+                card.className = `${cardClass} ${cardColor} text-gray-800`;
+                card.innerHTML = `
+                    <p class="text-sm font-medium"><strong>Consumable Part:</strong> ${consumableName}</p>
+                    <p class="text-sm"><strong>Machine ID:</strong> ${machineId}</p>
+                    <p class="text-sm"><strong>Last Replaced:</strong> ${lastReplaced}</p>
+                    <p class="text-sm"><strong>Next Service Due:</strong> ${nextServiceDue}</p>
+                    <p class="text-sm mt-2"><strong>Status:</strong> <span class="${statusColor} font-semibold">${statusText}</span></p>
+                `;
+                container.appendChild(card);
             });
         }
         
@@ -756,7 +853,7 @@
                 return 0; // Maintain original order for same-status items
             });
             
-            renderMaintenanceLogsTable(filteredLogs);
+            renderMaintenanceLogsTable(filteredLogs, 'maintenance-logs-table-body');
         }
 
         /**
@@ -787,7 +884,7 @@
                 return 0; // Maintain original order for same-status items
             });
             
-            renderConsumablesTable(filteredConsumables);
+            renderConsumablesTable(filteredConsumables, 'consumables-table-body');
         }
         
         /**
@@ -843,7 +940,6 @@
                 sortState.field = field;
                 sortState.direction = 'asc';
             }
-            // Logic is a bit complex to embed in a single line, so this is a simplified version.
             // A full implementation would need to re-render the modal table/cards.
             // For now, this is just a placeholder.
         }
@@ -853,11 +949,15 @@
             const modalTitle = document.getElementById('consumables-modal-title');
             modalTitle.textContent = title;
             currentModalConsumables = records;
-            // Simplified rendering for the modal content
+            // Render the modal content
             if (window.innerWidth >= 640) {
-                 renderConsumableTable(records, 'modal-consumables-table-body');
+                 renderConsumablesTable(records, 'modal-consumables-table-body');
+                 document.getElementById('consumables-table-wrapper').classList.remove('hidden');
+                 document.getElementById('modal-consumables-card-view').classList.add('hidden');
             } else {
-                // ... logic for mobile cards
+                renderModalConsumables(records, 'modal-consumables-card-view');
+                document.getElementById('modal-consumables-card-view').classList.remove('hidden');
+                document.getElementById('consumables-table-wrapper').classList.add('hidden');
             }
             modal.classList.remove('hidden');
         }
@@ -868,7 +968,7 @@
             modalTitle.textContent = title;
             currentModalMaintenanceLogs = records;
             // Simplified rendering for the modal content
-            renderMaintenanceLogs(records, 'maintenance-logs-container');
+            renderModalMaintenanceLogs(records, 'maintenance-logs-container');
             modal.classList.remove('hidden');
         }
 
@@ -989,9 +1089,17 @@
                 if (e.target.id === 'consumables-modal') hideConsumablesModal();
             });
             document.getElementById('consumable-search-input').addEventListener('input', () => {
-                // Re-filter the modal content
-                // For a full implementation, this would be a bit more complex,
-                // but for now, we can just re-render with the filtered list.
+                const searchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
+                const filteredConsumables = currentModalConsumables.filter(c => {
+                    const fields = c.fields;
+                    return (fields['Name'] && fields['Name'].toLowerCase().includes(searchQuery)) ||
+                           (fields['Consumable ID'] && fields['Consumable ID'].toLowerCase().includes(searchQuery));
+                });
+                if (window.innerWidth >= 640) {
+                    renderConsumablesTable(filteredConsumables, 'modal-consumables-table-body');
+                } else {
+                    renderModalConsumables(filteredConsumables, 'modal-consumables-card-view');
+                }
             });
             
             document.getElementById('close-maintenance-logs-modal-btn').addEventListener('click', hideMaintenanceLogsModal);
@@ -999,7 +1107,13 @@
                 if (e.target.id === 'maintenance-logs-modal') hideMaintenanceLogsModal();
             });
             document.getElementById('maintenance-log-search-input').addEventListener('input', () => {
-                // Re-filter the modal content
+                const searchQuery = document.getElementById('maintenance-log-search-input').value.toLowerCase();
+                const filteredLogs = currentModalMaintenanceLogs.filter(log => {
+                    const consumableName = log.fields['Consumable Part'] ? dataCache[log.fields['Consumable Part'][0]]?.Name || '' : '';
+                    const machineId = log.fields['Machine'] ? dataCache[log.fields['Machine'][0]]?.['Machine ID'] || '' : '';
+                    return consumableName.toLowerCase().includes(searchQuery) || machineId.toLowerCase().includes(searchQuery);
+                });
+                renderModalMaintenanceLogs(filteredLogs, 'maintenance-logs-container');
             });
         }
         
