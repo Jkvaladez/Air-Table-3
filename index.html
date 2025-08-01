@@ -123,12 +123,8 @@
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Name')">Name <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Consumable ID')">Consumable ID <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Cost/Unit')">Cost/Unit <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Unit')">Unit <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Stock Status')">Stock Status <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Reorder Point')">Reorder Point <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Current Stock')">Current Stock <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Location')">Location <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                         </tr>
                     </thead>
@@ -153,8 +149,20 @@
                     </button>
                 </div>
             </div>
-            <div id="maintenance-logs-container" class="space-y-4">
-                </div>
+            <div id="maintenance-logs-table-wrapper" class="hidden sm:block overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumable Part</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Replaced</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Service Due</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div id="modal-maintenance-logs-card-view" class="block sm:hidden space-y-4 mt-4"></div>
         </div>
     </div>
 
@@ -265,18 +273,10 @@
     function renderMachinesView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
-            <div class="mb-4 flex justify-between items-center">
+            <div class="mb-4">
                 <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
                     <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
                 </button>
-                <div class="flex space-x-2">
-                    <button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors text-sm">
-                        Expand All
-                    </button>
-                    <button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition-colors text-sm">
-                        Collapse All
-                    </button>
-                </div>
             </div>
             
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
@@ -310,6 +310,14 @@
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
                     <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Machines</h2>
+                    <div class="flex space-x-2">
+                        <button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors text-sm">
+                            Expand All
+                        </button>
+                        <button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition-colors text-sm">
+                            Collapse All
+                        </button>
+                    </div>
                 </div>
                 <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     <div class="col-span-full flex flex-col items-center justify-center py-10">
@@ -441,7 +449,6 @@
     function getMaintenanceStatus(fields) {
         const dueDate = fields['Next Service Due'];
         if (!dueDate) return 'On Schedule';
-        // Compare dates without time component for accuracy
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return new Date(dueDate) < today ? 'Overdue' : 'On Schedule';
@@ -580,6 +587,14 @@
         const consumableIds = machine.fields['Consumables'] || [];
         currentModalConsumables = allConsumables.filter(c => consumableIds.includes(c.id));
         
+        const stockStatusPriority = { 'Out of Stock': 0, 'Low Stock': 1, 'In Stock': 2 };
+        currentModalConsumables.sort((a, b) => {
+            const aPrio = stockStatusPriority[a.fields['Stock Status']] ?? 99;
+            const bPrio = stockStatusPriority[b.fields['Stock Status']] ?? 99;
+            if (aPrio !== bPrio) return aPrio - bPrio;
+            return (a.fields.Name || '').localeCompare(b.fields.Name || '');
+        });
+        
         document.getElementById('consumables-modal-title').textContent = `Consumables for ${machine.fields['Machine ID'] || 'Machine'}`;
         renderModalConsumables(currentModalConsumables);
         document.getElementById('consumables-modal').classList.remove('hidden');
@@ -620,16 +635,31 @@
             return machineLink && machineLink.includes(machineRecordId);
         });
 
+        const maintenanceStatusPriority = { 'Overdue': 0, 'On Schedule': 1 };
+        currentModalMaintenanceLogs.sort((a, b) => {
+            const aPrio = maintenanceStatusPriority[getMaintenanceStatus(a.fields)] ?? 99;
+            const bPrio = maintenanceStatusPriority[getMaintenanceStatus(b.fields)] ?? 99;
+            if (aPrio !== bPrio) return aPrio - bPrio;
+            const dateA = a.fields['Next Service Due'] ? new Date(a.fields['Next Service Due']) : 0;
+            const dateB = b.fields['Next Service Due'] ? new Date(b.fields['Next Service Due']) : 0;
+            return dateA - dateB;
+        });
+
         document.getElementById('maintenance-logs-modal-title').textContent = `Maintenance Logs for ${machine.fields['Machine ID'] || 'Machine'}`;
         renderModalMaintenanceLogs(currentModalMaintenanceLogs);
         document.getElementById('maintenance-logs-modal').classList.remove('hidden');
     }
 
     function renderModalMaintenanceLogs(logs) {
-        const container = document.getElementById('maintenance-logs-container');
-        if (!container) return;
+        const tableBody = document.getElementById('modal-maintenance-logs-table-body');
+        const cardView = document.getElementById('modal-maintenance-logs-card-view');
+        if (!tableBody || !cardView) return;
+
+        const tableHtml = logs.map(log => getModalMaintenanceLogRowHtml(log.fields)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="4" class="text-center py-4">No maintenance logs found.</td></tr>`;
+
         const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
-        container.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found for this machine.</p>`;
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found for this machine.</p>`;
     }
 
     // --- ALL CONSUMABLES VIEW FUNCTIONS ---
@@ -701,22 +731,21 @@
 
     function getModalConsumableRowHtml(fields) {
         const stockStatus = fields['Stock Status'];
+        let rowClass = '';
         let statusTextClass = '';
         if (stockStatus === 'Out of Stock') {
+            rowClass = 'bg-red-100';
             statusTextClass = 'text-red-700 font-semibold';
         } else if (stockStatus === 'Low Stock') {
+            rowClass = 'bg-yellow-100';
             statusTextClass = 'text-yellow-700 font-semibold';
         }
         return `
-            <tr>
+            <tr class="${rowClass}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${stockStatus || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Reorder Point'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Current Stock'] ?? 0}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Location'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline"><a href="${fields['Link'] || '#'}" target="_blank" rel="noopener noreferrer">Link</a></td>
             </tr>`;
     }
@@ -737,8 +766,7 @@
                 <p class="text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</p>
                 <div class="mt-2 pt-2 border-t text-sm space-y-1">
                     <p><strong>Stock:</strong> ${fields['Current Stock'] ?? 0} / ${fields['Reorder Point'] || 'N/A'}</p>
-                    <p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</p>
-                    <p><strong>Cost:</strong> ${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'} per ${fields['Unit'] || 'unit'}</p>
+                    <p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</td>
                 </div>
             </div>`;
     }
@@ -831,6 +859,20 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status || 'N/A'}</td>
+            </tr>`;
+    }
+
+    function getModalMaintenanceLogRowHtml(fields) {
+        const status = getMaintenanceStatus(fields);
+        let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
+        let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
+
+        return `
+            <tr class="${rowClass}">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${dataCache[fields['Consumable Part']?.[0]]?.Name || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td>
             </tr>`;
     }
 
