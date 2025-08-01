@@ -103,8 +103,7 @@
     </header>
 
     <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
-        <!-- Content will be rendered dynamically here -->
-    </main>
+        </main>
     
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
@@ -123,7 +122,6 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Name')">Name <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used On</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Consumable ID')">Consumable ID <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Cost/Unit')">Cost/Unit <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Unit')">Unit <i class="fas fa-sort ml-1"></i></th>
@@ -135,13 +133,11 @@
                         </tr>
                     </thead>
                     <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Consumable table rows will be dynamically inserted here -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
             <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4">
-                <!-- Consumable cards will be dynamically inserted here -->
-            </div>
+                </div>
         </div>
     </div>
     
@@ -158,8 +154,7 @@
                 </div>
             </div>
             <div id="maintenance-logs-container" class="space-y-4">
-                <!-- Maintenance log cards will be dynamically inserted here -->
-            </div>
+                </div>
         </div>
     </div>
 
@@ -613,8 +608,8 @@
         const cardView = document.getElementById('modal-consumables-card-view');
         if (!tableBody || !cardView) return;
 
-        const contentHtml = consumables.map(c => getConsumableRowHtml(c)).join('');
-        tableBody.innerHTML = contentHtml || `<tr><td colspan="10" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
+        const contentHtml = consumables.map(c => getModalConsumableRowHtml(c)).join('');
+        tableBody.innerHTML = contentHtml || `<tr><td colspan="9" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
         
         const cardHtml = consumables.map(c => getConsumableCardHtml(c)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables linked to this machine.</p>`;
@@ -637,8 +632,12 @@
     function showMaintenanceLogsModal(machineRecordId) {
         const machine = allMachines.find(m => m.id === machineRecordId);
         if (!machine) return;
-        const maintenanceLogIds = machine.fields['Maintenance Logs'] || [];
-        currentModalMaintenanceLogs = allMaintenanceLogs.filter(log => maintenanceLogIds.includes(log.id));
+        
+        currentModalMaintenanceLogs = allMaintenanceLogs.filter(log => {
+            const machineLink = log.fields.Machine || log.fields['Machine ID'];
+            return machineLink && machineLink.includes(machineRecordId);
+        });
+
         document.getElementById('maintenance-logs-modal-title').textContent = `Maintenance Logs for ${machine.fields['Machine ID'] || 'Machine'}`;
         renderModalMaintenanceLogs(currentModalMaintenanceLogs);
         document.getElementById('maintenance-logs-modal').classList.remove('hidden');
@@ -718,6 +717,29 @@
             <tr class="${rowClass}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${usedOnHtml || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${stockStatus || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Reorder Point'] || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Current Stock'] ?? 0}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Location'] || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline"><a href="${fields['Link'] || '#'}" target="_blank" rel="noopener noreferrer">Link</a></td>
+            </tr>`;
+    }
+
+    function getModalConsumableRowHtml(record) {
+        const fields = record.fields;
+        const stockStatus = fields['Stock Status'];
+        let statusTextClass = '';
+        if (stockStatus === 'Out of Stock') {
+            statusTextClass = 'text-red-700 font-semibold';
+        } else if (stockStatus === 'Low Stock') {
+            statusTextClass = 'text-yellow-700 font-semibold';
+        }
+        return `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
