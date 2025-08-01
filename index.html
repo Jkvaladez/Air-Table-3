@@ -92,7 +92,6 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- Persistent Navigation Bar -->
     <nav class="bg-white shadow-md fixed top-0 left-0 right-0 z-40">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -115,7 +114,6 @@
                 </div>
             </div>
         </div>
-        <!-- Mobile menu, show/hide based on menu state. -->
         <div class="md:hidden hidden" id="mobile-menu">
             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
                 <a href="#" data-page="dashboard" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Dashboard</a>
@@ -133,11 +131,9 @@
         </header>
 
         <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
-            <!-- Content will be rendered dynamically here -->
-        </main>
+            </main>
     </div>
     
-    <!-- Modals -->
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
@@ -276,7 +272,7 @@
     function renderPage() {
         const container = document.getElementById('app-container');
         if (!container) return;
-        container.innerHTML = '';
+        container.innerHTML = `<div class="flex justify-center items-center py-10"><div class="loading-spinner"></div></div>`;
         
         if (currentPage === 'dashboard') {
             renderDashboard();
@@ -400,7 +396,7 @@
                         <option value="replacedDate">Sort by Last Replaced</option>
                     </select>
                 </div>
-                <div id="maintenance-logs-table-container" class="overflow-x-auto">
+                <div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -414,6 +410,7 @@
                         <tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
+                <div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div>
             </section>
         `;
         attachMaintenanceViewListeners();
@@ -442,7 +439,7 @@
                         <option value="name">Sort by Name (A-Z)</option>
                     </select>
                 </div>
-                <div id="consumables-table-container" class="overflow-x-auto">
+                <div class="hidden sm:block overflow-x-auto" id="consumables-table-container">
                     <table class="min-w-full">
                         <thead class="bg-gray-50">
                             <tr>
@@ -460,6 +457,7 @@
                         <tbody id="consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
+                <div class="block sm:hidden space-y-4 mt-4" id="consumables-card-view"></div>
             </section>
         `;
         attachConsumablesViewListeners();
@@ -727,9 +725,14 @@
     
     function renderAllConsumables(consumables) {
         const tableBody = document.getElementById('consumables-table-body');
-        if (!tableBody) return;
+        const cardView = document.getElementById('consumables-card-view');
+        if (!tableBody || !cardView) return;
+        
         const tableHtml = consumables.map(c => getConsumableRowHtml(c.fields)).join('');
         tableBody.innerHTML = tableHtml || `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`;
+
+        const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables found.</p>`;
     }
 
     function getConsumableRowHtml(fields) {
@@ -782,18 +785,18 @@
     function getConsumableCardHtml(fields) {
         const stockStatus = fields['Stock Status'];
         let statusClass = '';
-        if (stockStatus === 'Out of Stock') statusClass = 'bg-red-200 text-red-800';
-        else if (stockStatus === 'Low Stock') statusClass = 'bg-yellow-200 text-yellow-800';
-        else statusClass = 'bg-green-200 text-green-800';
+        if (stockStatus === 'Out of Stock') statusClass = 'bg-red-100 text-red-800';
+        else if (stockStatus === 'Low Stock') statusClass = 'bg-yellow-100 text-yellow-800';
+        else statusClass = 'bg-green-100 text-green-800';
 
         return `
-            <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                <div class="flex justify-between items-center">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="flex justify-between items-center mb-2">
                     <h4 class="font-bold text-gray-800">${fields['Name'] || 'N/A'}</h4>
                     <span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${stockStatus}</span>
                 </div>
-                <p class="text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</p>
-                <div class="mt-2 pt-2 border-t text-sm space-y-1">
+                <p class="text-sm text-gray-500 mb-2">${fields['Consumable ID'] || 'N/A'}</p>
+                <div class="border-t pt-2 text-sm space-y-1 text-gray-600">
                     <p><strong>Stock:</strong> ${fields['Current Stock'] ?? 0} / ${fields['Reorder Point'] || 'N/A'}</p>
                     <p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</td>
                 </div>
@@ -868,9 +871,14 @@
 
     function renderAllMaintenanceLogs(logs) {
         const tableBody = document.getElementById('maintenance-logs-table-body');
-        if (!tableBody) return;
+        const cardView = document.getElementById('maintenance-logs-card-view');
+        if (!tableBody || !cardView) return;
+        
         const tableHtml = logs.map(log => getMaintenanceLogRowHtml(log.fields)).join('');
         tableBody.innerHTML = tableHtml || `<tr><td colspan="5" class="text-center py-4">No maintenance logs found.</td></tr>`;
+
+        const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
     }
     
     function getMaintenanceLogRowHtml(fields) {
@@ -907,16 +915,21 @@
 
     function getMaintenanceLogCardHtml(fields) {
         const status = getMaintenanceStatus(fields);
-        let statusClass = status === 'Overdue' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800';
+        let statusClass = status === 'Overdue' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+        
+        const machineRecordIds = fields['Machine ID'] || fields['Machine'];
+        const machineId = machineRecordIds && machineRecordIds.length > 0 ? (dataCache[machineRecordIds[0]]?.['Machine ID'] || 'N/A') : 'N/A';
+
         return `
-            <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                <div class="flex justify-between items-center">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="flex justify-between items-center mb-2">
                     <h4 class="font-bold text-gray-800">${dataCache[fields['Consumable Part']?.[0]]?.Name || 'N/A'}</h4>
                     <span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${status}</span>
                 </div>
-                <div class="mt-2 pt-2 border-t text-sm space-y-1">
-                    <p><strong>Last Replaced:</strong> ${formatDate(fields['Last Replaced'])}</p>
+                <p class="text-sm text-gray-500 mb-2">For Machine: ${machineId}</p>
+                <div class="border-t pt-2 text-sm space-y-1 text-gray-600">
                     <p><strong>Next Service Due:</strong> ${formatDate(fields['Next Service Due'])}</p>
+                    <p><strong>Last Replaced:</strong> ${formatDate(fields['Last Replaced'])}</p>
                 </div>
             </div>`;
     }
