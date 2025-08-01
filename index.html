@@ -169,35 +169,38 @@
 
                 orderedFieldsToRender.forEach(fieldName => {
                     const fieldValue = fields[fieldName];
-                    if (fieldValue && !fieldsToSkip.includes(fieldName)) {
-                        renderedFields.add(fieldName);
-                        let displayValue = fieldValue;
-                        
-                        if (fieldName === 'Consumables' && tableType === 'Machines') {
-                            // Create a clickable link with static text "View Consumables"
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> <a href="#" class="text-blue-600 hover:underline" onclick="displayConsumablesForMachine('${record.id}'); return false;">View Consumables</a></p>`;
-                        } else if (fieldName === 'Cost/Unit' && typeof fieldValue === 'number') {
-                            displayValue = new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD'
-                            }).format(fieldValue);
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
-                        } else if (Array.isArray(fieldValue) && fieldValue.every(v => typeof v === 'string' && v.startsWith('rec'))) {
-                            const linkedNames = fieldValue.map(id => {
-                                const linkedRecord = dataCache[id];
-                                return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
-                            }).join(', ');
-                            displayValue = linkedNames;
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
-                        } else if (Array.isArray(fieldValue)) {
-                            displayValue = fieldValue.join(', ');
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
-                        } else {
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
-                        }
+
+                    // Skip if the field is not present or if it's in the skip list.
+                    if (!fieldValue || fieldsToSkip.includes(fieldName)) {
+                        return;
+                    }
+
+                    renderedFields.add(fieldName);
+                    
+                    if (fieldName === 'Consumables' && tableType === 'Machines') {
+                        // This is the correct place to handle the "View Consumables" link.
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> <a href="#" class="text-blue-600 hover:underline" onclick="displayConsumablesForMachine('${record.id}'); return false;">View Consumables</a></p>`;
+                    } else if (fieldName === 'Cost/Unit' && typeof fieldValue === 'number') {
+                        let displayValue = new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD'
+                        }).format(fieldValue);
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
+                    } else if (Array.isArray(fieldValue) && fieldValue.every(v => typeof v === 'string' && v.startsWith('rec'))) {
+                        const linkedNames = fieldValue.map(id => {
+                            const linkedRecord = dataCache[id];
+                            return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
+                        }).join(', ');
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${linkedNames}</p>`;
+                    } else if (Array.isArray(fieldValue)) {
+                        let displayValue = fieldValue.join(', ');
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
+                    } else {
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${fieldValue}</p>`;
                     }
                 });
 
+                // Fallback loop for any fields not in the ordered list
                 for (const fieldName in fields) {
                     if (fields.hasOwnProperty(fieldName) && !renderedFields.has(fieldName) && !fieldsToSkip.includes(fieldName)) {
                         const fieldValue = fields[fieldName];
@@ -235,7 +238,6 @@
             const machineRecord = dataCache[machineRecordId];
             if (!machineRecord || !machineRecord['Consumables']) {
                 console.error('No machine record or consumables found.');
-                // Show a message to the user that no consumables exist for this machine.
                 const consumablesContainer = document.getElementById('consumables-container');
                 consumablesContainer.innerHTML = `<p class="text-gray-500 col-span-full text-center">No consumables found for this machine.</p>`;
                 
@@ -273,10 +275,8 @@
             consumablesTitle.textContent = 'BSV 100 Consumables';
             showAllBtn.classList.add('hidden');
             
-            // Re-render all consumables
             renderCards(consumablesData, 'consumables-container', 'Name', ['Machines'], 'Consumables');
         }
-
 
         // Function to handle filtering based on search input
         function filterRecords(records, query) {
@@ -325,34 +325,28 @@
                 </div>
             `;
             
-            // Use Promise.all to fetch both tables concurrently
             const [machines, consumables] = await Promise.all([
                 fetchAirtableData('Machines'),
                 fetchAirtableData('BSV 100 Consumables')
             ]);
             
-            // Sort machines by Machine ID
             machines.sort((a, b) => {
                 const numA = parseInt(a.fields['Machine ID'].split('-')[1]);
                 const numB = parseInt(b.fields['Machine ID'].split('-')[1]);
                 return numA - numB;
             });
             
-            // Sort consumables by Part Number
             consumables.sort((a, b) => {
                 const nameA = a.fields['Part Number'] || '';
                 const nameB = b.fields['Part Number'] || '';
                 return nameA.localeCompare(nameB);
             });
             
-            // Store the sorted, unfiltered data
             machinesData = machines;
             consumablesData = consumables;
             
-            // Initial render: Only render machines
             renderCards(machinesData, 'machines-container', 'Machine ID', [], 'Machines');
 
-            // Add event listener for the search bar
             const searchInput = document.getElementById('search-input');
             searchInput.addEventListener('input', (event) => {
                 const query = event.target.value;
@@ -360,7 +354,6 @@
                 renderCards(filteredMachines, 'machines-container', 'Machine ID', [], 'Machines');
             });
             
-            // Add event listener for the "Show All Consumables" button
             document.getElementById('show-all-consumables-btn').addEventListener('click', showAllConsumables);
         }
 
