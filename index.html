@@ -63,7 +63,7 @@
             padding-top: 0;
         }
         .collapsible-content.expanded {
-            max-height: 500px; /* A value larger than the max height to allow for expansion */
+            max-height: 1000px; /* Increased max-height to accommodate new section */
             padding-top: 1rem;
         }
         .collapsible-header .chevron {
@@ -153,7 +153,17 @@
 
         <!-- Machines Section -->
         <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-            <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Machines</h2>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
+                <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Machines</h2>
+                <div class="flex space-x-2">
+                    <button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors text-sm">
+                        Expand All
+                    </button>
+                    <button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition-colors text-sm">
+                        Collapse All
+                    </button>
+                </div>
+            </div>
             <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 <!-- Loading spinner for machines -->
                 <div class="col-span-full flex flex-col items-center justify-center py-10">
@@ -173,11 +183,11 @@
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
-                <h2 id="modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Consumables</h2>
+                <h2 id="consumables-modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Consumables</h2>
                 <div class="flex items-center space-x-2 w-full sm:w-auto">
                     <input type="search" id="consumable-search-input" placeholder="Search consumables..."
                            class="w-full px-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                    <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
+                    <button id="close-consumables-modal-btn" class="text-gray-500 hover:text-gray-700">
                         <i class="fas fa-times text-xl sm:text-2xl"></i>
                     </button>
                 </div>
@@ -212,6 +222,25 @@
         </div>
     </div>
     
+    <!-- Maintenance Logs Modal -->
+    <div id="maintenance-logs-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
+                <h2 id="maintenance-logs-modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Maintenance Logs</h2>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <input type="search" id="maintenance-log-search-input" placeholder="Search logs..."
+                           class="w-full px-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <button id="close-maintenance-logs-modal-btn" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl sm:text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="maintenance-logs-container" class="space-y-4">
+                <!-- Maintenance log cards will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
     <!-- Back to top button -->
     <button id="back-to-top-btn" class="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
         <i class="fas fa-chevron-up"></i>
@@ -228,8 +257,10 @@
         let dataCache = {};
         let machinesData = [];
         let consumablesData = [];
+        let maintenanceLogsData = [];
         let expandedCards = new Set();
-        let currentModalRecords = [];
+        let currentModalConsumables = [];
+        let currentModalMaintenanceLogs = [];
         let sortState = {
             field: 'Name',
             direction: 'asc'
@@ -291,34 +322,19 @@
             }
             return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         }
-
+        
         /**
-         * Toggles the expanded state of a collapsible card and saves it to local storage.
-         * @param {string} recordId - The ID of the record to toggle.
-         * @param {object} event - The click event object.
+         * Toggles the expanded state of a single machine card.
+         * @param {string} recordId - The ID of the machine record to toggle.
          */
-        function toggleCardCollapse(event, recordId) {
-            if (event.target.tagName === 'A' || event.target.closest('a')) {
-                return;
+        function toggleCardExpanded(recordId) {
+            if (expandedCards.has(recordId)) {
+                expandedCards.delete(recordId);
+            } else {
+                expandedCards.add(recordId);
             }
-
-            const card = document.getElementById(`card-${recordId}`);
-            if (!card) return;
-
-            const collapsibleContent = card.querySelector('.collapsible-content');
-            const collapsibleHeader = card.querySelector('.collapsible-header');
-
-            if (collapsibleContent && collapsibleHeader) {
-                const isExpanded = collapsibleContent.classList.toggle('expanded');
-                collapsibleHeader.classList.toggle('expanded', isExpanded);
-
-                if (isExpanded) {
-                    expandedCards.add(recordId);
-                } else {
-                    expandedCards.delete(recordId);
-                }
-                localStorage.setItem('expandedCards', JSON.stringify(Array.from(expandedCards)));
-            }
+            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
+            filterAndRender();
         }
         
         /**
@@ -341,23 +357,17 @@
             // The list of fields to display on the machine cards.
             const machineFieldOrder = [
                 'Manufacturer', 'Model', 'Serial Number', 'Part Number', 
-                'Equipment Number', 'Year', 'Last Service Date', 'Next Service Due'
+                'Equipment Number', 'Year'
             ];
             
-            const fieldIcons = {
-                'Next Service Due': '<i class="fas fa-calendar-days mr-2"></i>',
-                'Last Service Date': '<i class="fas fa-calendar-days mr-2"></i>',
-            };
-
             recordsToRender.forEach(record => {
                 const fields = record.fields;
+                const recordId = record.id;
                 const card = document.createElement('div');
-                card.id = `card-${record.id}`;
+                card.id = `card-${recordId}`;
                 card.className = 'bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col';
-
+                
                 let statusBadge = '';
-                card.classList.add('cursor-pointer');
-                card.onclick = (event) => toggleCardCollapse(event, record.id);
                 const machineStatus = fields['Machine Status'];
                 if (machineStatus === 'Under Maintenance') {
                     card.classList.add('bg-yellow-100');
@@ -376,59 +386,55 @@
                 
                 let cardHtml = '';
                 const cardTitle = fields['Machine ID'];
-                const isExpanded = expandedCards.has(record.id);
+                
+                // Card header with click handler
                 cardHtml += `
-                    <div class="collapsible-header flex justify-between items-center pb-2 ${isExpanded ? 'expanded' : ''}">
+                    <div class="flex justify-between items-center pb-2 cursor-pointer" onclick="toggleCardExpanded('${recordId}')">
                         <h3 class="text-lg sm:text-xl font-medium text-gray-900">${cardTitle || 'Untitled Machine'}</h3>
                         <div class="flex items-center space-x-2">
                             ${statusBadge}
-                            <i class="fas fa-chevron-down text-gray-500 chevron"></i>
+                            <i class="fas fa-chevron-down text-gray-500 transition-transform duration-200 ${expandedCards.has(recordId) ? 'rotate-180' : ''}"></i>
                         </div>
                     </div>
-                    <div class="collapsible-content mt-2 ${isExpanded ? 'expanded' : ''}">
                 `;
 
-                machineFieldOrder.forEach(fieldName => {
-                    let fieldValue = fields[fieldName];
-                    
-                    if (fieldName === 'Consumables' || fieldName === 'Machine Status' || fieldName === 'Machine ID') {
-                        return;
-                    }
-                    
-                    let iconHtml = fieldIcons[fieldName] || '';
-                    let fieldClass = 'text-gray-600';
-                    let formattedValue = fieldValue || 'N/A';
-                    
-                    if (fieldName === 'Last Service Date' || fieldName === 'Next Service Due') {
-                        formattedValue = formatDate(fieldValue);
-                        if (fieldName === 'Next Service Due' && fieldValue) {
-                            const nextServiceDate = new Date(fieldValue);
-                            const today = new Date();
-                            const sevenDaysFromNow = new Date();
-                            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-                            
-                            if (nextServiceDate < today) {
-                                fieldClass = 'text-red-500 font-semibold';
-                                formattedValue += ' (Overdue)';
-                            } else if (nextServiceDate < sevenDaysFromNow) {
-                                fieldClass = 'text-orange-500 font-semibold';
-                            }
+                if (expandedCards.has(recordId)) {
+                    // Expanded view
+                    cardHtml += `<div class="mt-2 space-y-1">`;
+                    machineFieldOrder.forEach(fieldName => {
+                        let fieldValue = fields[fieldName];
+                        
+                        if (fieldName === 'Consumables' || fieldName === 'Machine Status' || fieldName === 'Machine ID') {
+                            return;
                         }
-                    } else if (Array.isArray(fieldValue)) {
-                        let displayValue = fieldValue.map(id => {
-                            const linkedRecord = dataCache[id];
-                            return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
-                        }).join(', ');
-                        formattedValue = displayValue;
-                    } 
-                    cardHtml += `<p class="${fieldClass}">${iconHtml}<span class="font-semibold">${fieldName}:</span> ${formattedValue}</p>`;
-                });
-                
-                // Add the consumables link separately, as it's not a standard field.
-                if (fields['Consumables']) {
-                    cardHtml += `<p class="text-gray-600 mt-2"><span class="font-semibold">Consumables:</span> <a href="#" class="text-blue-600 hover:underline" onclick="displayConsumablesForMachine('${record.id}'); return false;">View Consumables</a></p>`;
-                }
+                        
+                        let fieldClass = 'text-gray-600';
+                        let formattedValue = fieldValue || 'N/A';
+                        
+                        if (Array.isArray(fieldValue)) {
+                            let displayValue = fieldValue.map(id => {
+                                const linkedRecord = dataCache[id];
+                                return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
+                            }).join(', ');
+                            formattedValue = displayValue;
+                        } 
+                        cardHtml += `<p class="${fieldClass}"><span class="font-semibold">${fieldName}:</span> ${formattedValue}</p>`;
+                    });
 
+                    cardHtml += `
+                        <div class="mt-4 flex flex-col space-y-2">
+                            <a href="#" class="text-blue-600 hover:underline font-semibold" onclick="displayMaintenanceLogsForMachine('${record.id}'); return false;">View Maintenance Logs</a>
+                    `;
+                    if (fields['Consumables']) {
+                        cardHtml += `
+                            <a href="#" class="text-blue-600 hover:underline font-semibold" onclick="displayConsumablesForMachine('${record.id}'); return false;">View Consumables</a>
+                        `;
+                    }
+                    cardHtml += `
+                        </div>
+                    `;
+                }
+                
                 cardHtml += `</div>`;
                 
                 if (cardHtml) {
@@ -561,7 +567,7 @@
             const numericFields = ['Cost/Unit', 'Reorder Point', 'Current Stock'];
             const isNumeric = numericFields.includes(field);
 
-            currentModalRecords.sort((a, b) => {
+            currentModalConsumables.sort((a, b) => {
                 let aVal = a.fields[field];
                 let bVal = b.fields[field];
 
@@ -578,7 +584,7 @@
 
             const consumableSearchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
             const filteredConsumables = consumableSearchQuery 
-                ? currentModalRecords.filter(record => {
+                ? currentModalConsumables.filter(record => {
                     const fields = record.fields;
                     for (const key in fields) {
                         const value = fields[key];
@@ -590,7 +596,7 @@
                     }
                     return false;
                 })
-                : currentModalRecords;
+                : currentModalConsumables;
             
             // Check screen size to render the appropriate view
             if (window.innerWidth >= 640) {
@@ -599,6 +605,56 @@
                 renderConsumableCardsMobile(filteredConsumables, 'consumables-card-view');
             }
         }
+
+        /**
+         * Renders the maintenance logs in the modal.
+         * @param {Array} records - The list of maintenance log records.
+         * @param {string} containerId - The ID of the HTML element to render the logs in.
+         */
+        function renderMaintenanceLogs(records, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            
+            if (records.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500 py-4">No maintenance logs found.</p>`;
+                return;
+            }
+            
+            records.forEach(record => {
+                const fields = record.fields;
+                const logCard = document.createElement('div');
+                
+                const consumableId = fields['Consumable Part'] ? fields['Consumable Part'][0] : null;
+                const consumableName = consumableId ? dataCache[consumableId]?.Name || 'Unknown Consumable' : 'N/A';
+                
+                const lastReplaced = formatDate(fields['Last Replaced']);
+                const nextServiceDue = formatDate(fields['Next Service Due']);
+                
+                let statusText = 'On Schedule';
+                let statusClass = 'text-green-600';
+                
+                const today = new Date();
+                if (fields['Next Service Due']) {
+                    const nextServiceDate = new Date(fields['Next Service Due']);
+                    if (nextServiceDate < today) {
+                        statusText = '⚠️ Overdue';
+                        statusClass = 'text-red-600 font-semibold';
+                    }
+                }
+                
+                logCard.className = 'bg-gray-50 p-4 rounded-lg shadow-sm';
+                logCard.innerHTML = `
+                    <h4 class="font-bold text-lg mb-2">${consumableName}</h4>
+                    <p class="text-sm"><span class="font-semibold">Last Replaced:</span> ${lastReplaced}</p>
+                    <p class="text-sm"><span class="font-semibold">Next Service Due:</span> ${nextServiceDue}</p>
+                    <p class="text-sm"><span class="font-semibold">Status:</span> <span class="${statusClass}">${statusText}</span></p>
+                `;
+                
+                container.appendChild(logCard);
+            });
+        }
+
 
         /**
          * Renders the low stock alerts on the main page.
@@ -630,29 +686,54 @@
         }
 
         /**
-         * Shows the modal with the given title and content.
+         * Shows the consumables modal.
          * @param {string} title - The title for the modal.
          * @param {Array} records - The records to display in the modal.
          */
         function showConsumablesModal(title, records) {
             const modal = document.getElementById('consumables-modal');
-            const modalTitle = document.getElementById('modal-title');
+            const modalTitle = document.getElementById('consumables-modal-title');
             
             modalTitle.textContent = title;
-            currentModalRecords = records;
+            currentModalConsumables = records;
             sortConsumables('Name'); // Default sort by name
+            modal.classList.remove('hidden');
+        }
+        
+        /**
+         * Shows the maintenance logs modal.
+         * @param {string} title - The title for the modal.
+         * @param {Array} records - The records to display in the modal.
+         */
+        function showMaintenanceLogsModal(title, records) {
+            const modal = document.getElementById('maintenance-logs-modal');
+            const modalTitle = document.getElementById('maintenance-logs-modal-title');
+            
+            modalTitle.textContent = title;
+            currentModalMaintenanceLogs = records;
+            renderMaintenanceLogs(records, 'maintenance-logs-container');
             modal.classList.remove('hidden');
         }
 
         /**
-         * Hides the modal.
+         * Hides the consumables modal.
          */
         function hideConsumablesModal() {
             const modal = document.getElementById('consumables-modal');
             modal.classList.add('hidden');
             // Clear the consumable search bar when the modal closes
             document.getElementById('consumable-search-input').value = '';
-            filterAndRender(); // Re-render to ensure the consumable table is not filtered on next open.
+            filterAndRender(); 
+        }
+        
+        /**
+         * Hides the maintenance logs modal.
+         */
+        function hideMaintenanceLogsModal() {
+            const modal = document.getElementById('maintenance-logs-modal');
+            modal.classList.add('hidden');
+            document.getElementById('maintenance-log-search-input').value = '';
+            filterAndRender();
         }
 
         /**
@@ -683,6 +764,26 @@
         }
         
         /**
+         * Filters the maintenance logs and displays them for a specific machine inside a modal.
+         * @param {string} machineRecordId - The ID of the machine record.
+         */
+        function displayMaintenanceLogsForMachine(machineRecordId) {
+            const machineRecord = dataCache[machineRecordId];
+            if (!machineRecord) {
+                showMaintenanceLogsModal('Maintenance Logs for Unknown Machine', []);
+                return;
+            }
+            
+            const logsForMachine = maintenanceLogsData.filter(log => {
+                const linkedMachineIds = log.fields['Machine'];
+                return linkedMachineIds && linkedMachineIds.includes(machineRecordId);
+            });
+            
+            const title = `Maintenance Logs for ${machineRecord['Machine ID']}`;
+            showMaintenanceLogsModal(title, logsForMachine);
+        }
+        
+        /**
          * Function to handle filtering for machines and consumables based on search/status.
          */
         function filterAndRender() {
@@ -693,6 +794,7 @@
             const statusFilter = statusFilterElement.value;
             
             const consumableSearchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
+            const logSearchQuery = document.getElementById('maintenance-log-search-input').value.toLowerCase();
             
             // Filter machines
             let filteredMachines = machinesData;
@@ -717,7 +819,7 @@
             
             // Filter and sort consumables within the modal if it's open
             if (!document.getElementById('consumables-modal').classList.contains('hidden')) {
-                let filteredConsumables = currentModalRecords;
+                let filteredConsumables = currentModalConsumables;
                 if (consumableSearchQuery) {
                     filteredConsumables = filteredConsumables.filter(record => {
                         const fields = record.fields;
@@ -738,6 +840,19 @@
                     renderConsumableCardsMobile(filteredConsumables, 'consumables-card-view');
                 }
             }
+            
+            // Filter maintenance logs within the modal if it's open
+            if (!document.getElementById('maintenance-logs-modal').classList.contains('hidden')) {
+                let filteredLogs = currentModalMaintenanceLogs;
+                if (logSearchQuery) {
+                     filteredLogs = filteredLogs.filter(record => {
+                        const consumableName = record.fields['Consumable Part'] ? dataCache[record.fields['Consumable Part'][0]]?.Name || 'Unknown Consumable' : 'N/A';
+                        return consumableName.toLowerCase().includes(logSearchQuery) || 
+                               (record.fields['Next Service Due'] && record.fields['Next Service Due'].toLowerCase().includes(logSearchQuery));
+                     });
+                }
+                renderMaintenanceLogs(filteredLogs, 'maintenance-logs-container');
+            }
         }
         
         /**
@@ -752,6 +867,24 @@
             } else {
                 toggleBtn.textContent = 'Show Filters';
             }
+        }
+
+        /**
+         * Expands all machine cards.
+         */
+        function expandAllCards() {
+            expandedCards = new Set(machinesData.map(record => record.id));
+            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
+            filterAndRender();
+        }
+
+        /**
+         * Collapses all machine cards.
+         */
+        function collapseAllCards() {
+            expandedCards.clear();
+            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
+            filterAndRender();
         }
         
         /**
@@ -775,9 +908,10 @@
                 `;
             }
 
-            const [machines, consumables] = await Promise.all([
+            const [machines, consumables, maintenanceLogs] = await Promise.all([
                 fetchAirtableData('Machines'),
-                fetchAirtableData('BSV 100 Consumables')
+                fetchAirtableData('BSV 100 Consumables'),
+                fetchAirtableData('BSV Maintenance Logs')
             ]);
             
             machines.sort((a, b) => {
@@ -797,6 +931,7 @@
             
             machinesData = machines;
             consumablesData = consumables;
+            maintenanceLogsData = maintenanceLogs;
 
             // Load persistent state from localStorage
             const savedSearchQuery = localStorage.getItem('searchQuery') || '';
@@ -867,16 +1002,37 @@
                 });
             }
             
-            const closeModalBtn = document.getElementById('close-modal-btn');
-            if (closeModalBtn) {
-                closeModalBtn.addEventListener('click', hideConsumablesModal);
+            const logSearchInput = document.getElementById('maintenance-log-search-input');
+            if (logSearchInput) {
+                 logSearchInput.addEventListener('input', () => {
+                    filterAndRender();
+                });
             }
             
-            const modalBackdrop = document.getElementById('consumables-modal');
-            if (modalBackdrop) {
-                 modalBackdrop.addEventListener('click', (e) => {
+            const closeConsumablesModalBtn = document.getElementById('close-consumables-modal-btn');
+            if (closeConsumablesModalBtn) {
+                closeConsumablesModalBtn.addEventListener('click', hideConsumablesModal);
+            }
+            
+            const closeMaintenanceLogsModalBtn = document.getElementById('close-maintenance-logs-modal-btn');
+            if (closeMaintenanceLogsModalBtn) {
+                closeMaintenanceLogsModalBtn.addEventListener('click', hideMaintenanceLogsModal);
+            }
+            
+            const consumablesModalBackdrop = document.getElementById('consumables-modal');
+            if (consumablesModalBackdrop) {
+                 consumablesModalBackdrop.addEventListener('click', (e) => {
                     if (e.target.id === 'consumables-modal') {
                         hideConsumablesModal();
+                    }
+                });
+            }
+            
+            const maintenanceLogsModalBackdrop = document.getElementById('maintenance-logs-modal');
+             if (maintenanceLogsModalBackdrop) {
+                 maintenanceLogsModalBackdrop.addEventListener('click', (e) => {
+                    if (e.target.id === 'maintenance-logs-modal') {
+                        hideMaintenanceLogsModal();
                     }
                 });
             }
@@ -884,6 +1040,17 @@
             const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
             if (toggleFiltersBtn) {
                 toggleFiltersBtn.addEventListener('click', toggleMobileFilters);
+            }
+
+            // New event listeners for expand/collapse all buttons
+            const expandAllBtn = document.getElementById('expand-all-btn');
+            if (expandAllBtn) {
+                expandAllBtn.addEventListener('click', expandAllCards);
+            }
+
+            const collapseAllBtn = document.getElementById('collapse-all-btn');
+            if (collapseAllBtn) {
+                collapseAllBtn.addEventListener('click', collapseAllCards);
             }
             
             // Handle window resize for dynamic UI updates
