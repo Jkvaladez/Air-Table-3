@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -54,16 +55,6 @@
                 max-height: 90%;
             }
         }
-        .collapsible-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-            padding-top: 0;
-        }
-        .collapsible-content.expanded {
-            max-height: 1000px;
-            padding-top: 1rem;
-        }
         #back-to-top-btn {
             position: fixed;
             bottom: 2rem;
@@ -88,6 +79,25 @@
             background-color: #eef2ff;
             color: #1f2937;
         }
+        #scanner-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            z-index: 100;
+        }
+        #reader {
+            width: 100%;
+            height: 100%;
+        }
+        #scanner-close-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 110;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -104,10 +114,12 @@
                         <a href="#" data-page="machines" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Machines</a>
                         <a href="#" data-page="maintenance" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Maintenance</a>
                         <a href="#" data-page="consumables" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Consumables</a>
+                        <button id="scan-btn-desktop" class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-qrcode mr-1"></i> Scan</button>
                     </div>
                 </div>
-                <div class="-mr-2 flex md:hidden">
-                    <button id="mobile-menu-button" type="button" class="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
+                <div class="-mr-2 flex items-center md:hidden">
+                    <button id="scan-btn-mobile" class="text-gray-600 hover:text-indigo-600 p-2 rounded-md"><i class="fas fa-qrcode text-xl"></i></button>
+                    <button id="mobile-menu-button" type="button" class="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
                         <span class="sr-only">Open main menu</span>
                         <i id="mobile-menu-icon" class="fas fa-bars"></i>
                     </button>
@@ -193,6 +205,13 @@
         </div>
     </div>
 
+    <div id="scanner-container" class="hidden">
+        <div id="reader" class="w-full h-full"></div>
+        <button id="scanner-close-btn" class="text-white bg-black bg-opacity-50 rounded-full w-12 h-12 text-2xl flex items-center justify-center">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
     <button id="back-to-top-btn" class="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
         <i class="fas fa-chevron-up"></i>
     </button>
@@ -216,6 +235,7 @@
     let currentModalConsumables = [];
     let currentModalMaintenanceLogs = [];
     let sortState = { field: 'Name', direction: 'asc' };
+    let html5QrcodeScanner;
     
     // Utility function to fetch data from a table with exponential backoff
     async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
@@ -354,12 +374,7 @@
                         </button>
                     </div>
                 </div>
-                <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                    <div class="col-span-full flex flex-col items-center justify-center py-10">
-                        <div class="loading-spinner mb-4"></div>
-                        <p class="text-gray-500">Loading Machines...</p>
-                    </div>
-                </div>
+                <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"></div>
                 <div id="load-more-container" class="flex justify-center mt-6 hidden">
                     <button id="load-more-btn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
                         Load More
@@ -588,6 +603,7 @@
     }
     
     function filterAndRenderMachines() {
+        if (!allMachines.length) return; // Guard against running before data is loaded
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
         let statusFilter = document.getElementById('status-filter')?.value || '';
         if (window.innerWidth < 640) {
@@ -692,6 +708,7 @@
     // --- ALL CONSUMABLES VIEW FUNCTIONS ---
     
     function filterAndRenderConsumables() {
+        if (!allConsumables.length) return;
         const searchTerm = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
         const sortBy = document.getElementById('consumables-view-sort')?.value || 'status';
@@ -806,6 +823,7 @@
     // --- ALL MAINTENANCE VIEW FUNCTIONS ---
     
     function filterAndRenderMaintenanceLogs() {
+        if (!allMaintenanceLogs.length) return;
         const searchTerm = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('maintenance-view-status-filter')?.value || '';
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
