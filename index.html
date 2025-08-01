@@ -49,6 +49,22 @@
             overflow-y: auto;
             position: relative;
         }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            padding-top: 0;
+        }
+        .collapsible-content.expanded {
+            max-height: 500px; /* A value larger than the max height to allow for expansion */
+            padding-top: 1rem;
+        }
+        .collapsible-header .chevron {
+            transition: transform 0.3s ease;
+        }
+        .collapsible-header.expanded .chevron {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 p-8">
@@ -152,6 +168,29 @@
         }
 
         /**
+         * Toggles the expanded state of a collapsible card.
+         * @param {string} recordId - The ID of the record to toggle.
+         * @param {object} event - The click event object.
+         */
+        function toggleCardCollapse(event, recordId) {
+            // Prevent the event from bubbling up and closing the card when a link is clicked
+            if (event.target.tagName === 'A') {
+                return;
+            }
+
+            const card = document.getElementById(`card-${recordId}`);
+            if (!card) return;
+
+            const collapsibleContent = card.querySelector('.collapsible-content');
+            const collapsibleHeader = card.querySelector('.collapsible-header');
+
+            if (collapsibleContent && collapsibleHeader) {
+                const isExpanded = collapsibleContent.classList.toggle('expanded');
+                collapsibleHeader.classList.toggle('expanded', isExpanded);
+            }
+        }
+
+        /**
          * Renders the cards for a given list of records.
          * @param {Array} records - The list of Airtable records to render.
          * @param {string} containerId - The ID of the HTML element to render the cards in.
@@ -184,22 +223,31 @@
             records.forEach(record => {
                 const fields = record.fields;
                 const card = document.createElement('div');
-                card.className = 'bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col';
+                card.id = `card-${record.id}`;
+                card.className = 'bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col cursor-pointer';
                 
                 let cardHtml = '';
                 const cardTitle = fields[titleFieldName];
                 const renderedFields = new Set();
-
-                if (cardTitle) {
-                    cardHtml += `<h3 class="text-xl font-medium text-gray-900 mb-2">${cardTitle}</h3>`;
-                    renderedFields.add(titleFieldName);
-                }
-
                 let orderedFieldsToRender = [];
+
                 if (tableType === 'Machines') {
                     orderedFieldsToRender = machineFieldOrder;
+                    card.onclick = (event) => toggleCardCollapse(event, record.id);
+                    
+                    // Header for collapsible card
+                    cardHtml += `
+                        <div class="collapsible-header flex justify-between items-center pb-2">
+                            <h3 class="text-xl font-medium text-gray-900">${cardTitle || 'Untitled Machine'}</h3>
+                            <i class="fas fa-chevron-down text-gray-500 chevron"></i>
+                        </div>
+                        <div class="collapsible-content mt-2">
+                    `;
+                    renderedFields.add(titleFieldName); // Title is already handled
                 } else if (tableType === 'Consumables') {
                     orderedFieldsToRender = consumableFieldOrder;
+                    cardHtml += `<h3 class="text-xl font-medium text-gray-900 mb-2">${cardTitle || 'Untitled Consumable'}</h3>`;
+                    renderedFields.add(titleFieldName);
                 }
 
                 orderedFieldsToRender.forEach(fieldName => {
@@ -239,31 +287,34 @@
                         cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${fieldValue || 'N/A'}</p>`;
                     }
                 });
+                
+                // Only loop through all remaining fields for the 'Machines' table to avoid extra fields on 'Consumables'
+                if (tableType === 'Machines') {
+                    for (const fieldName in fields) {
+                        if (fields.hasOwnProperty(fieldName) && !renderedFields.has(fieldName) && !fieldsToSkip.includes(fieldName)) {
+                            let fieldValue = fields[fieldName];
 
-                // Fallback loop for any fields not in the ordered list
-                for (const fieldName in fields) {
-                    if (fields.hasOwnProperty(fieldName) && !renderedFields.has(fieldName) && !fieldsToSkip.includes(fieldName)) {
-                        let fieldValue = fields[fieldName];
-
-                        // Special case for 'Next Service Due' in the fallback
-                        if (fieldName === 'Next Service Due' && !fieldValue) {
-                            fieldValue = 'N/A';
-                        }
-                        
-                        if (fieldValue) {
-                            let displayValue = fieldValue;
-                            if (Array.isArray(fieldValue) && fieldValue.every(v => typeof v === 'string' && v.startsWith('rec'))) {
-                                const linkedNames = fieldValue.map(id => {
-                                    const linkedRecord = dataCache[id];
-                                    return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
-                                }).join(', ');
-                                displayValue = linkedNames;
-                            } else if (Array.isArray(fieldValue)) {
-                                displayValue = fieldValue.join(', ');
+                            // Special case for 'Next Service Due' in the fallback
+                            if (fieldName === 'Next Service Due' && !fieldValue) {
+                                fieldValue = 'N/A';
                             }
-                            cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
+                            
+                            if (fieldValue) {
+                                let displayValue = fieldValue;
+                                if (Array.isArray(fieldValue) && fieldValue.every(v => typeof v === 'string' && v.startsWith('rec'))) {
+                                    const linkedNames = fieldValue.map(id => {
+                                        const linkedRecord = dataCache[id];
+                                        return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
+                                    }).join(', ');
+                                    displayValue = linkedNames;
+                                } else if (Array.isArray(fieldValue)) {
+                                    displayValue = fieldValue.join(', ');
+                                }
+                                cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
+                            }
                         }
                     }
+                    cardHtml += `</div>`; // Close collapsible content div
                 }
                 
                 if (cardHtml) {
@@ -288,7 +339,7 @@
             
             modalTitle.textContent = title;
             // Updated to use 'Name' as the title field for consumables
-            renderCards(records, 'modal-consumables-container', 'Name', ['Machines'], tableType);
+            renderCards(records, 'modal-consumables-container', 'Name', [], tableType);
             modal.classList.remove('hidden');
         }
 
@@ -343,10 +394,11 @@
                     if (Array.isArray(fieldValue)) {
                         let displayValue = '';
                         if (fieldValue.every(v => typeof v === 'string' && v.startsWith('rec'))) {
-                            displayValue = fieldValue.map(id => {
+                            const linkedNames = fieldValue.map(id => {
                                 const linkedRecord = dataCache[id];
                                 return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
                             }).join(', ');
+                            displayValue = linkedNames;
                         } else {
                             displayValue = fieldValue.join(', ');
                         }
@@ -393,10 +445,10 @@
                 return numA - numB;
             });
             
-            // Sort consumables by Part Number
+            // Sort consumables by Name
             consumables.sort((a, b) => {
-                const nameA = a.fields['Part Number'] || '';
-                const nameB = b.fields['Part Number'] || '';
+                const nameA = a.fields['Name'] || '';
+                const nameB = b.fields['Name'] || '';
                 return nameA.localeCompare(nameB);
             });
             
