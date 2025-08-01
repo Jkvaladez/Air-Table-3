@@ -287,7 +287,12 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API call failed with status: ${response.status}`);
+                    // Check for a specific 403 error and provide a more informative message
+                    if (response.status === 403) {
+                         throw new Error(`API call failed with status: ${response.status}. This may be due to an invalid or missing API key. Please try again later.`);
+                    } else {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
                 }
 
                 const result = await response.json();
