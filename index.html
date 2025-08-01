@@ -12,6 +12,7 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            padding-top: 4rem; /* For fixed navbar */
         }
         .loading-spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
@@ -60,14 +61,8 @@
             padding-top: 0;
         }
         .collapsible-content.expanded {
-            max-height: 1000px; /* A large value to allow content to expand */
+            max-height: 1000px;
             padding-top: 1rem;
-        }
-        .collapsible-header .chevron {
-            transition: transform 0.3s ease;
-        }
-        .collapsible-header.expanded .chevron {
-            transform: rotate(180deg);
         }
         #back-to-top-btn {
             position: fixed;
@@ -82,29 +77,67 @@
             opacity: 1;
             visibility: visible;
         }
-        .pulse-animation {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        .nav-link.active {
+            background-color: #4338ca;
+            color: white;
         }
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: .5;
-            }
+        .nav-link:not(.active) {
+            color: #374151;
+        }
+        .nav-link:not(.active):hover {
+            background-color: #eef2ff;
+            color: #1f2937;
         }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
+<body class="bg-gray-100 text-gray-800">
 
-    <header class="text-center mb-6 sm:mb-12">
-        <h1 class="text-3xl sm:text-5xl font-bold text-gray-900 mb-2">Airtable Dashboard</h1>
-        <p class="text-md sm:text-lg text-gray-600">Viewing Data from Airtable</p>
-    </header>
-
-    <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
-        </main>
+    <!-- Persistent Navigation Bar -->
+    <nav class="bg-white shadow-md fixed top-0 left-0 right-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-gray-800">Airtable Dashboard</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#" data-page="dashboard" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                        <a href="#" data-page="machines" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Machines</a>
+                        <a href="#" data-page="maintenance" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Maintenance</a>
+                        <a href="#" data-page="consumables" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Consumables</a>
+                    </div>
+                </div>
+                <div class="-mr-2 flex md:hidden">
+                    <button id="mobile-menu-button" type="button" class="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="sr-only">Open main menu</span>
+                        <i id="mobile-menu-icon" class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile menu, show/hide based on menu state. -->
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#" data-page="dashboard" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Dashboard</a>
+                <a href="#" data-page="machines" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Machines</a>
+                <a href="#" data-page="maintenance" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Maintenance</a>
+                <a href="#" data-page="consumables" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Consumables</a>
+            </div>
+        </div>
+    </nav>
     
+    <div class="p-4 sm:p-8">
+        <header class="text-center mb-6 sm:mb-12">
+            <h1 id="page-title" class="text-3xl sm:text-5xl font-bold text-gray-900 mb-2">Airtable Dashboard</h1>
+            <p id="page-subtitle" class="text-md sm:text-lg text-gray-600">Viewing Data from Airtable</p>
+        </header>
+
+        <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
+            <!-- Content will be rendered dynamically here -->
+        </main>
+    </div>
+    
+    <!-- Modals remain the same -->
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
@@ -128,12 +161,10 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                         </tr>
                     </thead>
-                    <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200">
-                        </tbody>
+                    <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
-            <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4">
-                </div>
+            <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4"></div>
         </div>
     </div>
     
@@ -183,6 +214,7 @@
     let allMachines = [];
     let allConsumables = [];
     let allMaintenanceLogs = [];
+    const dataLoaded = { machines: false, consumables: false, maintenance: false };
     let currentPage = 'dashboard';
     let expandedCards = new Set();
     let machinesToRenderCount = 10;
@@ -191,9 +223,13 @@
     let sortState = { field: 'Name', direction: 'asc' };
     
     // Utility function to fetch data from a table with exponential backoff
-    async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
+    async function fetchAirtableData(tableName, filterFormula = '', retries = 3, delay = 1000) {
+        let url = `${BASE_URL}${encodeURIComponent(tableName)}`;
+        if (filterFormula) {
+            url += `?filterByFormula=${encodeURIComponent(filterFormula)}`;
+        }
         try {
-            const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${airtableConfig.apiKey}` }
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -204,7 +240,7 @@
             if (retries > 0 && error.message.includes('status: 429')) {
                 console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
                 await new Promise(res => setTimeout(res, delay));
-                return fetchAirtableData(tableName, retries - 1, delay * 2);
+                return fetchAirtableData(tableName, filterFormula, retries - 1, delay * 2);
             }
             console.error(`Could not fetch data from ${tableName}:`, error);
             const container = document.getElementById('app-container');
@@ -221,6 +257,21 @@
      */
     function navigateTo(page) {
         currentPage = page;
+        
+        // Update header and active nav link
+        const pageTitles = {
+            dashboard: 'Airtable Dashboard',
+            machines: 'Machines',
+            maintenance: 'Maintenance Logs',
+            consumables: 'Consumables'
+        };
+        document.getElementById('page-title').textContent = pageTitles[page] || 'Dashboard';
+        document.getElementById('page-subtitle').style.display = page === 'dashboard' ? 'block' : 'none';
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.toggle('active', link.dataset.page === page);
+        });
+
         renderPage();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -228,7 +279,7 @@
     /**
      * Renders the current page based on the currentPage global variable.
      */
-    function renderPage() {
+    async function renderPage() {
         const container = document.getElementById('app-container');
         if (!container) return;
         container.innerHTML = '';
@@ -236,11 +287,11 @@
         if (currentPage === 'dashboard') {
             renderDashboard();
         } else if (currentPage === 'machines') {
-            renderMachinesView();
+            await renderMachinesView();
         } else if (currentPage === 'maintenance') {
-            renderMaintenanceView();
+            await renderMaintenanceView();
         } else if (currentPage === 'consumables') {
-            renderConsumablesView();
+            await renderConsumablesView();
         }
     }
     
@@ -270,15 +321,9 @@
     /**
      * Renders the Machines view with its search, filters, and cards.
      */
-    function renderMachinesView() {
+    async function renderMachinesView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
-            <div class="mb-4">
-                <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                </button>
-            </div>
-            
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
                 <div class="sm:flex sm:flex-row sm:gap-6 sm:items-center">
                     <input type="search" id="search-input" placeholder="Search machines..."
@@ -334,20 +379,20 @@
         `;
         
         attachMachinesViewListeners();
-        filterAndRenderMachines();
+
+        if (!dataLoaded.machines) {
+            allMachines = await fetchAirtableData('Machines');
+            dataLoaded.machines = true;
+        }
+        await applyMachineFilters();
     }
 
     /**
      * Renders the Maintenance Logs view with search and filters.
      */
-    function renderMaintenanceView() {
+    async function renderMaintenanceView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
-            <div class="mb-4 flex justify-between items-center">
-                <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                </button>
-            </div>
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
                 <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">All Maintenance Logs</h2>
                 <div class="flex flex-col sm:flex-row gap-4 mb-6">
@@ -383,20 +428,24 @@
             </section>
         `;
         attachMaintenanceViewListeners();
+
+        if (!dataLoaded.maintenance) {
+            const [maintenanceLogs, bsvMaintenanceLogs] = await Promise.all([
+                fetchAirtableData('Maintenance Logs'),
+                fetchAirtableData('BSV Maintenance Logs')
+            ]);
+            allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
+            dataLoaded.maintenance = true;
+        }
         filterAndRenderMaintenanceLogs();
     }
     
     /**
      * Renders the Consumables view with search and filters.
      */
-    function renderConsumablesView() {
+    async function renderConsumablesView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
-            <div class="mb-4 flex justify-between items-center">
-                <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                </button>
-            </div>
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
                 <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">All Consumables</h2>
                 <div class="flex flex-col sm:flex-row gap-4 mb-6">
@@ -434,6 +483,15 @@
             </section>
         `;
         attachConsumablesViewListeners();
+
+        if (!dataLoaded.consumables) {
+            const [consumables, bsvConsumables] = await Promise.all([
+                fetchAirtableData('Consumables'),
+                fetchAirtableData('BSV 100 Consumables')
+            ]);
+            allConsumables = consumables.concat(bsvConsumables);
+            dataLoaded.consumables = true;
+        }
         filterAndRenderConsumables();
     }
 
@@ -461,7 +519,7 @@
             expandedCards.add(recordId);
         }
         localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-        filterAndRenderMachines();
+        applyMachineFilters(false); // Re-render without fetching
     }
 
     function renderMachineCards(records) {
@@ -560,22 +618,32 @@
         return aID.localeCompare(bID);
     }
     
-    function filterAndRenderMachines() {
+    async function applyMachineFilters(fetch = true) {
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
-        let statusFilter = document.getElementById('status-filter')?.value || '';
-        if (window.innerWidth < 640) {
-            statusFilter = document.getElementById('status-filter-mobile')?.value || statusFilter;
+        const statusFilter = document.getElementById('status-filter')?.value || document.getElementById('status-filter-mobile')?.value || '';
+        
+        let machinesToDisplay = [];
+
+        if (fetch) {
+            const container = document.getElementById('machines-container');
+            container.innerHTML = `<div class="col-span-full flex flex-col items-center justify-center py-10"><div class="loading-spinner mb-4"></div><p class="text-gray-500">Loading Machines...</p></div>`;
+            const filterFormula = statusFilter ? `({Machine Status} = '${statusFilter}')` : '';
+            machinesToDisplay = await fetchAirtableData('Machines', filterFormula);
+            allMachines = machinesToDisplay; // Update cache with filtered or full list
+        } else {
+            machinesToDisplay = allMachines;
+        }
+        
+        if (searchTerm) {
+            machinesToDisplay = machinesToDisplay.filter(record => {
+                return Object.values(record.fields).some(value => 
+                    String(value).toLowerCase().includes(searchTerm)
+                );
+            });
         }
 
-        let filteredMachines = allMachines.filter(record => {
-            const fields = record.fields;
-            const matchesSearch = Object.values(fields).some(value => String(value).toLowerCase().includes(searchTerm));
-            const matchesStatus = statusFilter ? fields['Machine Status'] === statusFilter : true;
-            return matchesSearch && matchesStatus;
-        });
-
-        filteredMachines.sort(naturalSortMachines);
-        renderMachineCards(filteredMachines);
+        machinesToDisplay.sort(naturalSortMachines);
+        renderMachineCards(machinesToDisplay);
     }
     
     // --- MODAL FUNCTIONS ---
@@ -606,7 +674,7 @@
         if (!tableBody || !cardView) return;
 
         const contentHtml = consumables.map(c => getModalConsumableRowHtml(c.fields)).join('');
-        tableBody.innerHTML = contentHtml || `<tr><td colspan="9" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
+        tableBody.innerHTML = contentHtml || `<tr><td colspan="5" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
         
         const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables linked to this machine.</p>`;
@@ -858,7 +926,7 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${machineId}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td>
             </tr>`;
     }
 
@@ -895,18 +963,18 @@
     // --- ATTACH EVENT LISTENER FUNCTIONS ---
 
     function attachMachinesViewListeners() {
-        document.getElementById('search-input')?.addEventListener('input', filterAndRenderMachines);
-        document.getElementById('status-filter')?.addEventListener('change', filterAndRenderMachines);
-        document.getElementById('status-filter-mobile')?.addEventListener('change', filterAndRenderMachines);
+        document.getElementById('search-input')?.addEventListener('input', () => applyMachineFilters(false));
+        document.getElementById('status-filter')?.addEventListener('change', () => applyMachineFilters(true));
+        document.getElementById('status-filter-mobile')?.addEventListener('change', () => applyMachineFilters(true));
         document.getElementById('expand-all-btn')?.addEventListener('click', () => {
             allMachines.forEach(m => expandedCards.add(m.id));
             localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            filterAndRenderMachines();
+            applyMachineFilters(false);
         });
         document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
             expandedCards.clear();
             localStorage.setItem('expandedCards', JSON.stringify([]));
-            filterAndRenderMachines();
+            applyMachineFilters(false);
         });
         document.getElementById('toggle-filters-btn')?.addEventListener('click', (e) => {
             const content = document.getElementById('collapsible-filter-content');
@@ -915,7 +983,7 @@
         });
         document.getElementById('load-more-btn')?.addEventListener('click', () => {
             machinesToRenderCount += 10;
-            filterAndRenderMachines();
+            applyMachineFilters(false);
         });
     }
 
@@ -934,45 +1002,36 @@
     // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
 
     async function initializeApp() {
-        const appContainer = document.getElementById('app-container');
-        appContainer.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-64">
-                <div class="loading-spinner mb-4"></div>
-                <p class="text-gray-600">Loading initial data, please wait...</p>
-            </div>`;
-
-        try {
-            const [
-                machines, 
-                consumables, 
-                maintenanceLogs,
-                bsvConsumables,
-                bsvMaintenanceLogs
-            ] = await Promise.all([
-                fetchAirtableData('Machines'),
-                fetchAirtableData('Consumables'),
-                fetchAirtableData('Maintenance Logs'),
-                fetchAirtableData('BSV 100 Consumables'),
-                fetchAirtableData('BSV Maintenance Logs')
-            ]);
-
-            allMachines = machines;
-            allConsumables = consumables.concat(bsvConsumables);
-            allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
-            
-            const savedExpanded = localStorage.getItem('expandedCards');
-            if (savedExpanded) {
-                expandedCards = new Set(JSON.parse(savedExpanded));
-            }
-            navigateTo('dashboard');
-        } catch (error) {
-            console.error("Initialization failed:", error);
-            appContainer.innerHTML = `<p class="text-red-500 text-center">Failed to initialize the application. Please refresh the page.</p>`;
-        }
+        navigateTo('dashboard');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         initializeApp();
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo(e.currentTarget.dataset.page);
+                // For mobile, close the menu after clicking a link
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (!mobileMenu.classList.contains('hidden')) {
+                    mobileMenu.classList.add('hidden');
+                    document.getElementById('mobile-menu-icon').classList.replace('fa-times', 'fa-bars');
+                }
+            });
+        });
+
+        document.getElementById('mobile-menu-button').addEventListener('click', () => {
+            const mobileMenu = document.getElementById('mobile-menu');
+            const icon = document.getElementById('mobile-menu-icon');
+            mobileMenu.classList.toggle('hidden');
+            if (mobileMenu.classList.contains('hidden')) {
+                icon.classList.replace('fa-times', 'fa-bars');
+            } else {
+                icon.classList.replace('fa-bars', 'fa-times');
+            }
+        });
+
         const backToTopBtn = document.getElementById('back-to-top-btn');
         if (backToTopBtn) {
             window.onscroll = () => {
