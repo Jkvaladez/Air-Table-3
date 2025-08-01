@@ -42,12 +42,19 @@
         /* Modal content styling */
         .modal-content {
             background-color: white;
-            padding: 2rem;
+            padding: 1rem;
             border-radius: 0.75rem;
-            max-width: 90%;
-            max-height: 90%;
+            max-width: 95%;
+            max-height: 95%;
             overflow-y: auto;
             position: relative;
+        }
+        @media (min-width: 640px) {
+            .modal-content {
+                padding: 2rem;
+                max-width: 90%;
+                max-height: 90%;
+            }
         }
         .collapsible-content {
             max-height: 0;
@@ -104,15 +111,32 @@
     <main class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
         
         <!-- Search and Filter Section -->
-        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row gap-4 sm:gap-6 items-center">
-            <input type="search" id="search-input" placeholder="Search machines..."
-                   class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-            <div class="w-full sm:w-auto">
-                <select id="status-filter" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+            <div class="sm:flex sm:flex-row sm:gap-6 sm:items-center">
+                <input type="search" id="search-input" placeholder="Search machines..."
+                       class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
+                <div class="mt-4 sm:mt-0 w-full sm:w-auto">
+                    <button id="toggle-filters-btn" class="w-full sm:hidden px-4 py-2 bg-gray-200 rounded-lg font-semibold text-gray-700 hover:bg-gray-300 transition-colors">
+                        Show Filters
+                    </button>
+                    <select id="status-filter" class="hidden sm:block w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
+                        <option value="">All Statuses</option>
+                        <option value="Operational">Operational</option>
+                        <option value="Under Maintenance">Under Maintenance</option>
+                        <option value="Out of Service">Out of Service</option>
+                        <option value="Decommissioned">Decommissioned</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Collapsible filter content for mobile -->
+            <div id="collapsible-filter-content" class="collapsible-content sm:hidden">
+                <select id="status-filter-mobile" class="w-full mt-4 px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
                     <option value="">All Statuses</option>
                     <option value="Operational">Operational</option>
                     <option value="Under Maintenance">Under Maintenance</option>
                     <option value="Out of Service">Out of Service</option>
+                    <option value="Decommissioned">Decommissioned</option>
                 </select>
             </div>
         </div>
@@ -137,6 +161,11 @@
                     <p class="text-gray-500">Loading Machines...</p>
                 </div>
             </div>
+            <div id="load-more-container" class="flex justify-center mt-6 hidden">
+                <button id="load-more-btn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                    Load More
+                </button>
+            </div>
         </section>
     </main>
 
@@ -153,7 +182,9 @@
                     </button>
                 </div>
             </div>
-            <div class="overflow-x-auto">
+            
+            <!-- Consumables table for desktop -->
+            <div id="consumables-table-wrapper" class="hidden sm:block overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -172,6 +203,11 @@
                         <!-- Consumable table rows will be dynamically inserted here -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Consumables card view for mobile -->
+            <div id="consumables-card-view" class="block sm:hidden space-y-4 mt-4">
+                <!-- Consumable cards will be dynamically inserted here -->
             </div>
         </div>
     </div>
@@ -198,6 +234,7 @@
             field: 'Name',
             direction: 'asc'
         };
+        let machinesToRenderCount = 10; // For simulated lazy loading
 
         // Utility function to fetch data from a table with exponential backoff
         async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
@@ -293,7 +330,10 @@
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
-            if (records.length === 0) {
+            
+            const recordsToRender = records.slice(0, machinesToRenderCount);
+            
+            if (recordsToRender.length === 0) {
                 container.innerHTML = `<p class="text-gray-500 col-span-full text-center">No machines found.</p>`;
                 return;
             }
@@ -309,7 +349,7 @@
                 'Last Service Date': '<i class="fas fa-calendar-days mr-2"></i>',
             };
 
-            records.forEach(record => {
+            recordsToRender.forEach(record => {
                 const fields = record.fields;
                 const card = document.createElement('div');
                 card.id = `card-${record.id}`;
@@ -327,6 +367,9 @@
                     statusBadge = `<span class="bg-red-300 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-triangle-exclamation mr-1"></i> ${machineStatus}</span>`;
                 } else if (machineStatus === 'Operational') {
                      statusBadge = `<span class="bg-green-300 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-circle-check mr-1"></i> ${machineStatus}</span>`;
+                } else if (machineStatus === 'Decommissioned') {
+                    card.classList.add('bg-gray-300');
+                    statusBadge = `<span class="bg-gray-400 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">💀 ${machineStatus}</span>`;
                 } else {
                     card.classList.add('bg-white');
                 }
@@ -396,14 +439,22 @@
                 
                 container.appendChild(card);
             });
+            
+            // Show/hide the "Load More" button
+            const loadMoreBtnContainer = document.getElementById('load-more-container');
+            if (records.length > machinesToRenderCount) {
+                loadMoreBtnContainer.classList.remove('hidden');
+            } else {
+                loadMoreBtnContainer.classList.add('hidden');
+            }
         }
         
         /**
-         * Renders the consumable records as table rows inside the modal.
+         * Renders the consumable records as table rows inside the modal for desktop.
          * @param {Array} records - The list of Airtable records to render.
          * @param {string} containerId - The ID of the HTML element to render the rows in.
          */
-        function renderConsumableCards(records, containerId) {
+        function renderConsumableTable(records, containerId) {
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
@@ -444,6 +495,54 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm">${formattedLink}</td>
                 `;
                 container.appendChild(row);
+            });
+        }
+        
+        /**
+         * Renders the consumable records as cards inside the modal for mobile.
+         * @param {Array} records - The list of Airtable records to render.
+         * @param {string} containerId - The ID of the HTML element to render the cards in.
+         */
+        function renderConsumableCardsMobile(records, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (records.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500 py-4">No consumables found.</p>`;
+                return;
+            }
+
+            records.forEach(record => {
+                const fields = record.fields;
+                const card = document.createElement('div');
+                let cardClass = 'p-4 rounded-lg shadow-sm';
+                
+                const stockStatus = fields['Stock Status'];
+                if (stockStatus === 'Low Stock') {
+                    cardClass += ' bg-red-100 text-red-900';
+                } else {
+                    cardClass += ' bg-gray-50 text-gray-800';
+                }
+                
+                card.className = cardClass;
+                
+                let costValue = fields['Cost/Unit'];
+                let formattedCost = costValue !== undefined ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(costValue) : 'N/A';
+                const linkValue = fields['Link'];
+                const formattedLink = linkValue ? `<a href="${linkValue}" target="_blank" class="text-blue-600 hover:underline">View Link</a>` : 'N/A';
+
+                card.innerHTML = `
+                    <h4 class="font-bold text-lg mb-2">${fields['Name'] || 'N/A'}</h4>
+                    <p><span class="font-semibold">Consumable ID:</span> ${fields['Consumable ID'] || 'N/A'}</p>
+                    <p><span class="font-semibold">Cost/Unit:</span> ${formattedCost}</p>
+                    <p><span class="font-semibold">Unit:</span> ${fields['Unit'] || 'N/A'}</p>
+                    <p><span class="font-semibold">Stock Status:</span> ${stockStatus || 'N/A'}</p>
+                    <p><span class="font-semibold">Current Stock:</span> ${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</p>
+                    <p><span class="font-semibold">Reorder Point:</span> ${fields['Reorder Point'] !== undefined ? fields['Reorder Point'] : 'N/A'}</p>
+                    <p><span class="font-semibold">Location:</span> ${fields['Location'] || 'N/A'}</p>
+                    <p class="mt-2"><span class="font-semibold">Link:</span> ${formattedLink}</p>
+                `;
+                container.appendChild(card);
             });
         }
         
@@ -492,8 +591,13 @@
                     return false;
                 })
                 : currentModalRecords;
-
-            renderConsumableCards(filteredConsumables, 'modal-consumables-table-body');
+            
+            // Check screen size to render the appropriate view
+            if (window.innerWidth >= 640) {
+                renderConsumableTable(filteredConsumables, 'modal-consumables-table-body');
+            } else {
+                renderConsumableCardsMobile(filteredConsumables, 'consumables-card-view');
+            }
         }
 
         /**
@@ -559,8 +663,12 @@
             const machineRecord = dataCache[machineRecordId];
             if (!machineRecord || !machineRecord['Consumables']) {
                 const consumablesTableBody = document.getElementById('modal-consumables-table-body');
+                const consumablesCardView = document.getElementById('consumables-card-view');
                 if (consumablesTableBody) {
                     consumablesTableBody.innerHTML = `<tr><td colspan="9" class="text-center text-gray-500 py-4">No consumables found for this machine.</td></tr>`;
+                }
+                if (consumablesCardView) {
+                     consumablesCardView.innerHTML = `<p class="text-center text-gray-500 py-4">No consumables found for this machine.</p>`;
                 }
                 const title = `Consumables for ${machineRecord ? machineRecord['Machine ID'] : 'Unknown Machine'}`;
                 showConsumablesModal(title, []);
@@ -579,7 +687,11 @@
          */
         function filterAndRender() {
             const searchQuery = document.getElementById('search-input').value.toLowerCase();
-            const statusFilter = document.getElementById('status-filter').value;
+            
+            const isMobile = window.innerWidth < 640;
+            const statusFilterElement = isMobile ? document.getElementById('status-filter-mobile') : document.getElementById('status-filter');
+            const statusFilter = statusFilterElement.value;
+            
             const consumableSearchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
             
             // Filter machines
@@ -620,8 +732,34 @@
                         return false;
                     });
                 }
-                renderConsumableCards(filteredConsumables, 'modal-consumables-table-body');
+                if (window.innerWidth >= 640) {
+                    renderConsumableTable(filteredConsumables, 'modal-consumables-table-body');
+                } else {
+                    renderConsumableCardsMobile(filteredConsumables, 'consumables-card-view');
+                }
             }
+        }
+        
+        /**
+         * Toggles the visibility of the mobile filter section.
+         */
+        function toggleMobileFilters() {
+            const collapsibleContent = document.getElementById('collapsible-filter-content');
+            const toggleBtn = document.getElementById('toggle-filters-btn');
+            const isExpanded = collapsibleContent.classList.toggle('expanded');
+            if (isExpanded) {
+                toggleBtn.textContent = 'Hide Filters';
+            } else {
+                toggleBtn.textContent = 'Show Filters';
+            }
+        }
+        
+        /**
+         * Function to load more machine cards (for simulated lazy loading).
+         */
+        function loadMoreMachines() {
+            machinesToRenderCount += 10;
+            filterAndRender();
         }
 
 
@@ -670,9 +808,11 @@
 
             const searchInput = document.getElementById('search-input');
             const statusFilter = document.getElementById('status-filter');
-            if (searchInput && statusFilter) {
+            const statusFilterMobile = document.getElementById('status-filter-mobile');
+            if (searchInput && statusFilter && statusFilterMobile) {
                 searchInput.value = savedSearchQuery;
                 statusFilter.value = savedStatusFilter;
+                statusFilterMobile.value = savedStatusFilter;
             }
             
             // Back to top button listener
@@ -708,6 +848,18 @@
                 });
             }
             
+            if (statusFilterMobile) {
+                statusFilterMobile.addEventListener('change', (event) => {
+                    localStorage.setItem('statusFilter', event.target.value);
+                    filterAndRender();
+                });
+            }
+
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', loadMoreMachines);
+            }
+            
             const consumableSearchInput = document.getElementById('consumable-search-input');
             if (consumableSearchInput) {
                 consumableSearchInput.addEventListener('input', () => {
@@ -728,6 +880,14 @@
                     }
                 });
             }
+            
+            const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+            if (toggleFiltersBtn) {
+                toggleFiltersBtn.addEventListener('click', toggleMobileFilters);
+            }
+            
+            // Handle window resize for dynamic UI updates
+            window.addEventListener('resize', filterAndRender);
         }
 
         window.onload = initApp;
