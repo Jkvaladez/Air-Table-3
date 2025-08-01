@@ -78,7 +78,7 @@
             opacity: 1;
             visibility: visible;
         }
-        /* Pulse animation for low stock alerts */
+        /* Pulse animation for low stock alerts section */
         .pulse-animation {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
@@ -105,7 +105,7 @@
         
         <!-- Search and Filter Section -->
         <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row gap-4 sm:gap-6 items-center">
-            <input type="search" id="search-input" placeholder="Search by Machine ID, Part Number, or Name..."
+            <input type="search" id="search-input" placeholder="Search machines..."
                    class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
             <div class="w-full sm:w-auto">
                 <select id="status-filter" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
@@ -119,7 +119,9 @@
 
         <!-- Low Stock Alerts Section -->
         <section id="low-stock-alerts-container" class="bg-red-50 p-4 sm:p-6 rounded-xl shadow-lg hidden">
-            <h2 class="text-2xl font-bold text-red-700 mb-4 flex items-center"><i class="fas fa-triangle-exclamation mr-3"></i>Low Stock Alerts</h2>
+            <h2 class="text-2xl font-bold text-red-700 mb-4 flex items-center">
+                Low Stock Alerts
+            </h2>
             <div id="low-stock-list" class="space-y-3">
                 <!-- Low stock alerts will be inserted here -->
             </div>
@@ -144,7 +146,7 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
                 <h2 id="modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Consumables</h2>
                 <div class="flex items-center space-x-2 w-full sm:w-auto">
-                    <input type="search" id="consumable-search-input" placeholder="Filter by Supplier..."
+                    <input type="search" id="consumable-search-input" placeholder="Search consumables..."
                            class="w-full px-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
                         <i class="fas fa-times text-xl sm:text-2xl"></i>
@@ -159,9 +161,9 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Consumable ID')">Consumable ID <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Cost/Unit')">Cost/Unit <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Unit')">Unit <i class="fas fa-sort ml-1"></i></th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Stock Status')">Stock Status <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Reorder Point')">Reorder Point <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Current Stock')">Current Stock <i class="fas fa-sort ml-1"></i></th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Stock Status')">Stock Status <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortConsumables('Location')">Location <i class="fas fa-sort ml-1"></i></th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                         </tr>
@@ -413,10 +415,16 @@
             records.forEach(record => {
                 const fields = record.fields;
                 const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-100 transition-colors duration-200';
+                let rowClass = 'hover:bg-gray-100 transition-colors duration-200';
                 
                 const stockStatus = fields['Stock Status'];
-                const stockStatusClass = stockStatus === 'Low Stock' ? 'text-red-600 font-semibold' : 'text-gray-800';
+                if (stockStatus === 'Low Stock') {
+                    rowClass += ' bg-red-100 text-red-900';
+                } else {
+                    rowClass += ' bg-white text-gray-800';
+                }
+                
+                row.className = rowClass;
                 
                 let costValue = fields['Cost/Unit'];
                 let formattedCost = costValue !== undefined ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(costValue) : 'N/A';
@@ -425,15 +433,15 @@
                 const formattedLink = linkValue ? `<a href="${linkValue}" target="_blank" class="text-blue-600 hover:underline">View Link</a>` : 'N/A';
 
                 row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Name'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Consumable ID'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${formattedCost}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Unit'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Reorder Point'] !== undefined ? fields['Reorder Point'] : 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${stockStatusClass}">${stockStatus || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${fields['Location'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${formattedLink}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Name'] || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Consumable ID'] || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${formattedCost}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Unit'] || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${stockStatus || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Reorder Point'] !== undefined ? fields['Reorder Point'] : 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Location'] || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${formattedLink}</td>
                 `;
                 container.appendChild(row);
             });
@@ -471,7 +479,18 @@
 
             const consumableSearchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
             const filteredConsumables = consumableSearchQuery 
-                ? currentModalRecords.filter(record => (record.fields['Supplier'] || '').toLowerCase().includes(consumableSearchQuery))
+                ? currentModalRecords.filter(record => {
+                    const fields = record.fields;
+                    for (const key in fields) {
+                        const value = fields[key];
+                        if (value !== null && value !== undefined) {
+                            if (String(value).toLowerCase().includes(consumableSearchQuery)) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                })
                 : currentModalRecords;
 
             renderConsumableCards(filteredConsumables, 'modal-consumables-table-body');
@@ -497,8 +516,7 @@
                 lowStockItems.forEach(item => {
                     const alertDiv = document.createElement('div');
                     alertDiv.className = 'flex items-center text-red-700 p-2 rounded-md bg-red-100 shadow-inner';
-                    alertDiv.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                                          <p><strong>${item.fields['Name']}</strong> is at <strong>${item.fields['Current Stock']}</strong> units (Reorder Point: ${item.fields['Reorder Point']})</p>`;
+                    alertDiv.innerHTML = `<p><strong>${item.fields['Name']}</strong> is at <strong>${item.fields['Current Stock']}</strong> units (Reorder Point: ${item.fields['Reorder Point']})</p>`;
                     container.appendChild(alertDiv);
                 });
             } else {
@@ -528,6 +546,9 @@
         function hideConsumablesModal() {
             const modal = document.getElementById('consumables-modal');
             modal.classList.add('hidden');
+            // Clear the consumable search bar when the modal closes
+            document.getElementById('consumable-search-input').value = '';
+            filterAndRender(); // Re-render to ensure the consumable table is not filtered on next open.
         }
 
         /**
@@ -566,9 +587,15 @@
             if (searchQuery) {
                 filteredMachines = filteredMachines.filter(record => {
                     const fields = record.fields;
-                    return (fields['Machine ID'] && fields['Machine ID'].toLowerCase().includes(searchQuery)) ||
-                           (fields['Part Number'] && fields['Part Number'].toLowerCase().includes(searchQuery)) ||
-                           (fields['Name'] && fields['Name'].toLowerCase().includes(searchQuery));
+                    for (const key in fields) {
+                        const value = fields[key];
+                        if (value !== null && value !== undefined) {
+                            if (String(value).toLowerCase().includes(searchQuery)) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
                 });
             }
             if (statusFilter) {
@@ -581,8 +608,16 @@
                 let filteredConsumables = currentModalRecords;
                 if (consumableSearchQuery) {
                     filteredConsumables = filteredConsumables.filter(record => {
-                        const supplier = record.fields['Supplier'] || '';
-                        return supplier.toLowerCase().includes(consumableSearchQuery);
+                        const fields = record.fields;
+                        for (const key in fields) {
+                            const value = fields[key];
+                            if (value !== null && value !== undefined) {
+                                if (String(value).toLowerCase().includes(consumableSearchQuery)) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
                     });
                 }
                 renderConsumableCards(filteredConsumables, 'modal-consumables-table-body');
