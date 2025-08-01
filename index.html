@@ -8,7 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -61,7 +60,7 @@
             padding-top: 0;
         }
         .collapsible-content.expanded {
-            max-height: 1000px;
+            max-height: 1000px; /* A large value to allow content to expand */
             padding-top: 1rem;
         }
         .collapsible-header .chevron {
@@ -98,18 +97,14 @@
 </head>
 <body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
 
-    <!-- Header Section -->
     <header class="text-center mb-6 sm:mb-12">
         <h1 class="text-3xl sm:text-5xl font-bold text-gray-900 mb-2">Airtable Dashboard</h1>
         <p class="text-md sm:text-lg text-gray-600">Viewing Data from Airtable</p>
     </header>
 
-    <!-- Main Content Area -->
     <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
-        <!-- Content will be rendered dynamically here -->
-    </main>
+        </main>
     
-    <!-- Consumables Modal (used for machine-specific view) -->
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
@@ -138,17 +133,14 @@
                         </tr>
                     </thead>
                     <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Consumable table rows will be dynamically inserted here -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
             <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4">
-                <!-- Consumable cards will be dynamically inserted here -->
-            </div>
+                </div>
         </div>
     </div>
     
-    <!-- Maintenance Logs Modal (used for machine-specific view) -->
     <div id="maintenance-logs-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
@@ -162,963 +154,95 @@
                 </div>
             </div>
             <div id="maintenance-logs-container" class="space-y-4">
-                <!-- Maintenance log cards will be dynamically inserted here -->
-            </div>
+                </div>
         </div>
     </div>
 
-    <!-- Back to top button -->
     <button id="back-to-top-btn" class="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
         <i class="fas fa-chevron-up"></i>
     </button>
 
-    <script>
-        // Airtable configuration
-        const airtableConfig = {
-            apiKey: 'patA8WihRZtwXarV8.d6d00c7b162757fb1b30efe56d8b58f8dbbbbb9f058e52a22fcde00e566b9956', 
-            baseId: 'appOKqcWBsHytL5Ae', 
-        };
-        const BASE_URL = `https://api.airtable.com/v0/${airtableConfig.baseId}/`;
-        
-        // Global variables to store data
-        let dataCache = {};
-        let allMachines = [];
-        let allConsumables = [];
-        let allMaintenanceLogs = [];
-        let currentPage = 'dashboard';
-        let expandedCards = new Set();
-        let machinesToRenderCount = 10;
-        let currentModalConsumables = [];
-        let currentModalMaintenanceLogs = [];
-        let sortState = { field: 'Name', direction: 'asc' };
-        
-        // Utility function to fetch data from a table with exponential backoff
-        async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
-            try {
-                const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
-                    headers: { 'Authorization': `Bearer ${airtableConfig.apiKey}` }
-                });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const data = await response.json();
-                data.records.forEach(record => { dataCache[record.id] = record.fields; });
-                return data.records;
-            } catch (error) {
-                if (retries > 0 && error.message.includes('status: 429')) {
-                    console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
-                    await new Promise(res => setTimeout(res, delay));
-                    return fetchAirtableData(tableName, retries - 1, delay * 2);
-                }
-                console.error(`Could not fetch data from ${tableName}:`, error);
-                const container = document.getElementById('app-container');
-                if (container) {
-                    container.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load data for **${tableName}**. Please check the API key, table name, and network connection.</p>`;
-                }
-                return [];
-            }
-        }
-        
-        /**
-         * Navigates to a different page/view of the application.
-         * @param {string} page - The name of the page to navigate to ('dashboard', 'machines', 'maintenance', 'consumables').
-         */
-        function navigateTo(page) {
-            currentPage = page;
-            renderPage();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-        
-        /**
-         * Renders the current page based on the currentPage global variable.
-         */
-        function renderPage() {
-            const container = document.getElementById('app-container');
-            if (!container) return;
-            container.innerHTML = '';
-            
-            // Render the specific view based on the current page
-            if (currentPage === 'dashboard') {
-                renderDashboard();
-            } else if (currentPage === 'machines') {
-                renderMachinesView();
-            } else if (currentPage === 'maintenance') {
-                renderMaintenanceView();
-            } else if (currentPage === 'consumables') {
-                renderConsumablesView();
-            }
-        }
-        
-        /**
-         * Renders the main dashboard view with navigation cards.
-         */
-        function renderDashboard() {
-            const container = document.getElementById('app-container');
-            container.innerHTML = `
-                <section class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-                    <div class="bg-blue-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('machines')">
-                        <i class="fas fa-robot text-4xl mb-4"></i>
-                        <h2 class="text-xl sm:text-2xl font-bold">Machines</h2>
-                    </div>
-                    <div class="bg-green-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('maintenance')">
-                        <i class="fas fa-wrench text-4xl mb-4"></i>
-                        <h2 class="text-xl sm:text-2xl font-bold">Maintenance</h2>
-                    </div>
-                    <div class="bg-purple-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('consumables')">
-                        <i class="fas fa-boxes text-4xl mb-4"></i>
-                        <h2 class="text-xl sm:text-2xl font-bold">Consumables</h2>
-                    </div>
-                </section>
-            `;
-        }
-        
-        /**
-         * Renders the Machines view with its search, filters, and cards.
-         */
-        function renderMachinesView() {
-            const container = document.getElementById('app-container');
-            container.innerHTML = `
-                <div class="mb-4 flex justify-between items-center">
-                    <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                    </button>
-                    <div class="flex space-x-2">
-                        <button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors text-sm">
-                            Expand All
-                        </button>
-                        <button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 transition-colors text-sm">
-                            Collapse All
-                        </button>
-                    </div>
-                </div>
-                
-                <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                    <div class="sm:flex sm:flex-row sm:gap-6 sm:items-center">
-                        <input type="search" id="search-input" placeholder="Search machines..."
-                               class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                        <div class="mt-4 sm:mt-0 w-full sm:w-auto">
-                            <button id="toggle-filters-btn" class="w-full sm:hidden px-4 py-2 bg-gray-200 rounded-lg font-semibold text-gray-700 hover:bg-gray-300 transition-colors">
-                                Show Filters
-                            </button>
-                            <select id="status-filter" class="hidden sm:block w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                                <option value="">All Statuses</option>
-                                <option value="Operational">Operational</option>
-                                <option value="Under Maintenance">Under Maintenance</option>
-                                <option value="Out of Service">Out of Service</option>
-                                <option value="Decommissioned">Decommissioned</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="collapsible-filter-content" class="collapsible-content sm:hidden">
-                        <select id="status-filter-mobile" class="w-full mt-4 px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                            <option value="">All Statuses</option>
-                            <option value="Operational">Operational</option>
-                            <option value="Under Maintenance">Under Maintenance</option>
-                            <option value="Out of Service">Out of Service</option>
-                            <option value="Decommissioned">Decommissioned</option>
-                        </select>
-                    </div>
-                </section>
-
-                <section id="low-stock-alerts-container" class="bg-red-50 p-4 sm:p-6 rounded-xl shadow-lg hidden">
-                    <h2 class="text-2xl font-bold text-red-700 mb-4 flex items-center">
-                        Low Stock Alerts
-                    </h2>
-                    <div id="low-stock-list" class="space-y-3"></div>
-                </section>
-
-                <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
-                        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Machines</h2>
-                    </div>
-                    <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                        <div class="col-span-full flex flex-col items-center justify-center py-10">
-                            <div class="loading-spinner mb-4"></div>
-                            <p class="text-gray-500">Loading Machines...</p>
-                        </div>
-                    </div>
-                    <div id="load-more-container" class="flex justify-center mt-6 hidden">
-                        <button id="load-more-btn" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
-                            Load More
-                        </button>
-                    </div>
-                </section>
-            `;
-            
-            // Re-attach event listeners and initial rendering for this view
-            attachMachinesViewListeners();
-            filterAndRenderMachines();
-            renderLowStockAlerts();
-        }
-
-        /**
-         * Renders the Maintenance Logs view with search and filters.
-         */
-        function renderMaintenanceView() {
-            const container = document.getElementById('app-container');
-            container.innerHTML = `
-                <div class="mb-4 flex justify-between items-center">
-                    <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                    </button>
-                </div>
-                <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">All Maintenance Logs</h2>
-                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                        <input type="search" id="maintenance-view-search-input" placeholder="Search by consumable or machine ID..."
-                               class="flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                        <select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                            <option value="">Show All</option>
-                            <option value="Overdue">Overdue</option>
-                            <option value="On Schedule">On Schedule</option>
-                        </select>
-                    </div>
-                    <div id="maintenance-logs-table-container" class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumable Part</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Machine ID</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Replaced</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Service Due</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200">
-                                <!-- Logs will be dynamically inserted here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            `;
-            attachMaintenanceViewListeners();
-            filterAndRenderMaintenanceLogs();
-        }
-        
-        /**
-         * Renders the Consumables view with search and filters.
-         */
-        function renderConsumablesView() {
-            const container = document.getElementById('app-container');
-            container.innerHTML = `
-                <div class="mb-4 flex justify-between items-center">
-                    <button class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors" onclick="navigateTo('dashboard')">
-                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                    </button>
-                </div>
-                <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">All Consumables</h2>
-                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                        <input type="search" id="consumables-view-search-input" placeholder="Search by name, ID, or location..."
-                               class="flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                        <select id="consumables-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base">
-                            <option value="">Show All</option>
-                            <option value="Low Stock">Low Stock</option>
-                            <option value="In Stock">In Stock</option>
-                            <option value="Out of Stock">Out of Stock</option>
-                        </select>
-                    </div>
-                    <div id="consumables-table-container" class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Name</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Consumable ID</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Cost/Unit</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Unit</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Stock Status</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Reorder Point</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Current Stock</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">Location</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
-                                </tr>
-                            </thead>
-                            <tbody id="consumables-table-body" class="bg-white divide-y divide-gray-200">
-                                <!-- Consumables will be dynamically inserted here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            `;
-            attachConsumablesViewListeners();
-            filterAndRenderConsumables();
-        }
-
-        // --- Helper and Shared Functions ---
-
-        /**
-         * Helper function to format a date string into a human-readable format.
-         * @param {string} dateString - The date string to format.
-         * @returns {string} The formatted date string or 'N/A' if invalid.
-         */
-        function formatDate(dateString) {
-            if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) {
-                return 'N/A';
-            }
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-        }
-        
-        /**
-         * Toggles the expanded state of a single machine card.
-         * @param {string} recordId - The ID of the machine record to toggle.
-         */
-        function toggleCardExpanded(recordId) {
-            if (expandedCards.has(recordId)) {
-                expandedCards.delete(recordId);
-            } else {
-                expandedCards.add(recordId);
-            }
-            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            filterAndRenderMachines();
-        }
-
-        /**
-         * Renders the machine cards in the machines view.
-         * @param {Array} records - The list of Airtable records to render.
-         */
-        function renderMachineCards(records) {
-            const container = document.getElementById('machines-container');
-            if (!container) return;
-            container.innerHTML = '';
-            
-            const recordsToRender = records.slice(0, machinesToRenderCount);
-            if (recordsToRender.length === 0) {
-                container.innerHTML = `<p class="text-gray-500 col-span-full text-center">No machines found.</p>`;
-                return;
-            }
-            
-            const machineFieldOrder = ['Manufacturer', 'Model', 'Serial Number', 'Part Number', 'Equipment Number', 'Year'];
-            
-            recordsToRender.forEach(record => {
-                const fields = record.fields;
-                const recordId = record.id;
-                const card = document.createElement('div');
-                card.id = `card-${recordId}`;
-                card.className = 'bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col transform hover:scale-[1.01] transition-transform duration-200';
-                
-                let statusBadge = '';
-                const machineStatus = fields['Machine Status'];
-                let cardStatusClass = 'bg-white'; // Initialize with a default class
-                if (machineStatus === 'Under Maintenance') {
-                    cardStatusClass = 'bg-yellow-100';
-                    statusBadge = `<span class="bg-yellow-300 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-wrench mr-1"></i> ${machineStatus}</span>`;
-                } else if (machineStatus === 'Out of Service') {
-                    cardStatusClass = 'bg-red-100';
-                    statusBadge = `<span class="bg-red-300 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-triangle-exclamation mr-1"></i> ${machineStatus}</span>`;
-                } else if (machineStatus === 'Operational') {
-                    cardStatusClass = 'bg-green-100';
-                    statusBadge = `<span class="bg-green-300 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-circle-check mr-1"></i> ${machineStatus}</span>`;
-                } else if (machineStatus === 'Decommissioned') {
-                    cardStatusClass = 'bg-gray-300';
-                    statusBadge = `<span class="bg-gray-400 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">💀 ${machineStatus}</span>`;
-                }
-                card.classList.add(cardStatusClass);
-                
-                let cardHtml = '';
-                const cardTitle = fields['Machine ID'];
-                
-                cardHtml += `
-                    <div class="flex justify-between items-center pb-2 cursor-pointer" onclick="toggleCardExpanded('${recordId}')">
-                        <h3 class="text-lg sm:text-xl font-medium text-gray-900">${cardTitle || 'Untitled Machine'}</h3>
-                        <div class="flex items-center space-x-2">
-                            ${statusBadge}
-                            <i class="fas fa-chevron-down text-gray-500 transition-transform duration-200 ${expandedCards.has(recordId) ? 'rotate-180' : ''}"></i>
-                        </div>
-                    </div>
-                `;
-
-                if (expandedCards.has(recordId)) {
-                    cardHtml += `<div class="mt-2 space-y-1">`;
-                    machineFieldOrder.forEach(fieldName => {
-                        let fieldValue = fields[fieldName];
-                        if (fieldName === 'Consumables' || fieldName === 'Machine Status' || fieldName === 'Machine ID') return;
-                        let formattedValue = fieldValue || 'N/A';
-                        if (Array.isArray(fieldValue)) {
-                            let displayValue = fieldValue.map(id => {
-                                const linkedRecord = dataCache[id];
-                                return linkedRecord ? (linkedRecord['Name'] || linkedRecord['Part Number'] || id) : id;
-                            }).join(', ');
-                            formattedValue = displayValue;
-                        } 
-                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${formattedValue}</p>`;
-                    });
-                    cardHtml += `
-                        <div class="mt-4 flex flex-col space-y-2">
-                            <a href="#" class="text-blue-600 hover:underline font-semibold" onclick="displayMaintenanceLogsForMachine('${record.id}'); return false;">View Maintenance Logs</a>
-                    `;
-                    if (fields['Consumables']) {
-                        cardHtml += `<a href="#" class="text-blue-600 hover:underline font-semibold" onclick="displayConsumablesForMachine('${record.id}'); return false;">View Consumables</a>`;
-                    }
-                    cardHtml += `</div>`;
-                }
-                
-                cardHtml += `</div>`;
-                if (cardHtml) {
-                    card.innerHTML = cardHtml;
-                } else {
-                    card.innerHTML = `<p class="text-gray-500">No data available for this record.</p>`;
-                }
-                container.appendChild(card);
+<script>
+    // Airtable configuration
+    const airtableConfig = {
+        apiKey: 'patA8WihRZtwXarV8.d6d00c7b162757fb1b30efe56d8b58f8dbbbbb9f058e52a22fcde00e566b9956', // Replace with your actual API key
+        baseId: 'appOKqcWBsHytL5Ae', // Replace with your actual Base ID
+    };
+    const BASE_URL = `https://api.airtable.com/v0/${airtableConfig.baseId}/`;
+    
+    // Global variables to store data
+    let dataCache = {};
+    let allMachines = [];
+    let allConsumables = [];
+    let allMaintenanceLogs = [];
+    let currentPage = 'dashboard';
+    let expandedCards = new Set();
+    let machinesToRenderCount = 10;
+    let currentModalConsumables = [];
+    let currentModalMaintenanceLogs = [];
+    let sortState = { field: 'Name', direction: 'asc' };
+    
+    // Utility function to fetch data from a table with exponential backoff
+    async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
+        try {
+            const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
+                headers: { 'Authorization': `Bearer ${airtableConfig.apiKey}` }
             });
-            
-            const loadMoreBtnContainer = document.getElementById('load-more-container');
-            if (records.length > machinesToRenderCount) {
-                loadMoreBtnContainer.classList.remove('hidden');
-            } else {
-                loadMoreBtnContainer.classList.add('hidden');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            data.records.forEach(record => { dataCache[record.id] = record.fields; });
+            return data.records;
+        } catch (error) {
+            if (retries > 0 && error.message.includes('status: 429')) {
+                console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
+                await new Promise(res => setTimeout(res, delay));
+                return fetchAirtableData(tableName, retries - 1, delay * 2);
             }
-        }
-        
-        /**
-         * Renders the consumable records as table rows.
-         * @param {Array} records - The list of Airtable records to render.
-         */
-        function renderConsumablesTable(records, containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            if (records.length === 0) {
-                container.innerHTML = `<tr><td colspan="9" class="text-center text-gray-500 py-4">No consumables found.</td></tr>`;
-                return;
-            }
-            
-            records.forEach(record => {
-                const fields = record.fields;
-                const row = document.createElement('tr');
-                let rowClass = 'hover:bg-gray-100 transition-colors duration-200';
-                const stockStatus = fields['Stock Status'];
-                if (stockStatus === 'Low Stock') {
-                    rowClass += ' bg-red-100 text-red-900';
-                } else if (stockStatus === 'Out of Stock') {
-                    rowClass += ' bg-red-200 text-red-900';
-                }
-                row.className = rowClass;
-                let costValue = fields['Cost/Unit'];
-                let formattedCost = costValue !== undefined ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(costValue) : 'N/A';
-                const linkValue = fields['Link'];
-                const formattedLink = linkValue ? `<a href="${linkValue}" target="_blank" class="text-blue-600 hover:underline">View Link</a>` : 'N/A';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Name'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Consumable ID'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${formattedCost}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Unit'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${stockStatus || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Reorder Point'] !== undefined ? fields['Reorder Point'] : 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${fields['Location'] || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${formattedLink}</td>
-                `;
-                container.appendChild(row);
-            });
-        }
-        
-        /**
-         * Renders consumable records as cards for mobile/modal view.
-         * @param {Array} records - The list of Airtable records.
-         * @param {string} containerId - The ID of the container element.
-         */
-        function renderModalConsumables(records, containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            if (records.length === 0) {
-                container.innerHTML = `<p class="text-center text-gray-500 py-4">No consumables found.</p>`;
-                return;
-            }
-
-            records.forEach(record => {
-                const fields = record.fields;
-                const card = document.createElement('div');
-                let cardClass = 'p-4 rounded-lg shadow-sm';
-                const stockStatus = fields['Stock Status'];
-                if (stockStatus === 'Low Stock') {
-                    cardClass += ' bg-red-100 text-red-900';
-                } else if (stockStatus === 'Out of Stock') {
-                     cardClass += ' bg-red-200 text-red-900';
-                } else {
-                    cardClass += ' bg-gray-50 text-gray-800';
-                }
-                card.className = cardClass;
-
-                let costValue = fields['Cost/Unit'];
-                let formattedCost = costValue !== undefined ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(costValue) : 'N/A';
-                const linkValue = fields['Link'];
-                const formattedLink = linkValue ? `<a href="${linkValue}" target="_blank" class="text-blue-600 hover:underline">View Link</a>` : 'N/A';
-                
-                card.innerHTML = `
-                    <h3 class="text-lg font-semibold">${fields['Name'] || 'N/A'}</h3>
-                    <p class="text-sm"><strong>Consumable ID:</strong> ${fields['Consumable ID'] || 'N/A'}</p>
-                    <p class="text-sm"><strong>Cost/Unit:</strong> ${formattedCost}</p>
-                    <p class="text-sm"><strong>Stock Status:</strong> ${stockStatus || 'N/A'}</p>
-                    <p class="text-sm"><strong>Current Stock:</strong> ${fields['Current Stock'] !== undefined ? fields['Current Stock'] : 'N/A'}</p>
-                    <div class="mt-2">${formattedLink}</div>
-                `;
-                container.appendChild(card);
-            });
-        }
-        
-        /**
-         * Renders the maintenance logs in a table.
-         * @param {Array} records - The list of maintenance log records.
-         */
-        function renderMaintenanceLogsTable(records, containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            
-            if (records.length === 0) {
-                container.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">No maintenance logs found.</td></tr>`;
-                return;
-            }
-            
-            records.forEach(record => {
-                const fields = record.fields;
-                const row = document.createElement('tr');
-                let rowClass = 'hover:bg-gray-100 transition-colors duration-200';
-                
-                const consumableId = fields['Consumable Part'] ? fields['Consumable Part'][0] : null;
-                const consumableName = consumableId ? dataCache[consumableId]?.Name || 'Unknown Consumable' : 'N/A';
-                const machineId = fields['Machine'] ? dataCache[fields['Machine'][0]]?.['Machine ID'] || 'Unknown Machine' : 'N/A';
-                
-                const lastReplaced = formatDate(fields['Last Replaced']);
-                const nextServiceDue = formatDate(fields['Next Service Due']);
-                
-                let statusText = 'On Schedule';
-                let statusClass = 'text-green-600';
-                
-                const today = new Date();
-                let isOverdue = false;
-                if (fields['Next Service Due']) {
-                    const nextServiceDate = new Date(fields['Next Service Due']);
-                    if (nextServiceDate < today) {
-                        isOverdue = true;
-                        statusText = '⚠️ Overdue';
-                        statusClass = 'text-red-600 font-semibold';
-                    }
-                }
-                
-                if (isOverdue) {
-                     rowClass += ' bg-red-100 text-red-900';
-                }
-                
-                row.className = rowClass;
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${consumableName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${machineId}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${lastReplaced}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">${nextServiceDue}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="${statusClass}">${statusText}</span></td>
-                `;
-                
-                container.appendChild(row);
-            });
-        }
-        
-        /**
-         * Renders maintenance logs as cards for mobile/modal view.
-         * @param {Array} records - The list of Airtable records.
-         * @param {string} containerId - The ID of the container element.
-         */
-        function renderModalMaintenanceLogs(records, containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            if (records.length === 0) {
-                container.innerHTML = `<p class="text-center text-gray-500 py-4">No maintenance logs found.</p>`;
-                return;
-            }
-
-            records.forEach(record => {
-                const fields = record.fields;
-                const card = document.createElement('div');
-                let cardClass = 'p-4 rounded-lg shadow-sm';
-
-                const consumableId = fields['Consumable Part'] ? fields['Consumable Part'][0] : null;
-                const consumableName = consumableId ? dataCache[consumableId]?.Name || 'Unknown Consumable' : 'N/A';
-                const machineId = fields['Machine'] ? dataCache[fields['Machine'][0]]?.['Machine ID'] || 'Unknown Machine' : 'N/A';
-                
-                const lastReplaced = formatDate(fields['Last Replaced']);
-                const nextServiceDue = formatDate(fields['Next Service Due']);
-                
-                let statusText = 'On Schedule';
-                let statusColor = 'text-green-600';
-                let cardColor = 'bg-gray-50';
-                
-                const today = new Date();
-                if (fields['Next Service Due']) {
-                    const nextServiceDate = new Date(fields['Next Service Due']);
-                    if (nextServiceDate < today) {
-                        statusText = '⚠️ Overdue';
-                        statusColor = 'text-red-600';
-                        cardColor = 'bg-red-100';
-                    }
-                }
-                
-                card.className = `${cardClass} ${cardColor} text-gray-800`;
-                card.innerHTML = `
-                    <p class="text-sm font-medium"><strong>Consumable Part:</strong> ${consumableName}</p>
-                    <p class="text-sm"><strong>Machine ID:</strong> ${machineId}</p>
-                    <p class="text-sm"><strong>Last Replaced:</strong> ${lastReplaced}</p>
-                    <p class="text-sm"><strong>Next Service Due:</strong> ${nextServiceDue}</p>
-                    <p class="text-sm mt-2"><strong>Status:</strong> <span class="${statusColor} font-semibold">${statusText}</span></p>
-                `;
-                container.appendChild(card);
-            });
-        }
-        
-        /**
-         * Renders the low stock alerts on the machines page.
-         */
-        function renderLowStockAlerts() {
-            const lowStockItems = allConsumables.filter(c => {
-                const stock = c.fields['Current Stock'];
-                const reorder = c.fields['Reorder Point'];
-                return typeof stock === 'number' && typeof reorder === 'number' && stock <= reorder;
-            });
-
-            const container = document.getElementById('low-stock-list');
-            const alertsSection = document.getElementById('low-stock-alerts-container');
-            if (!container || !alertsSection) return;
-
-            if (lowStockItems.length > 0) {
-                alertsSection.classList.remove('hidden');
-                alertsSection.classList.add('pulse-animation');
-                container.innerHTML = '';
-                lowStockItems.forEach(item => {
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'flex items-center text-red-700 p-2 rounded-md bg-red-100 shadow-inner';
-                    alertDiv.innerHTML = `<p><strong>${item.fields['Name']}</strong> is at <strong>${item.fields['Current Stock']}</strong> units (Reorder Point: ${item.fields['Reorder Point']})</p>`;
-                    container.appendChild(alertDiv);
-                });
-            } else {
-                alertsSection.classList.add('hidden');
-                alertsSection.classList.remove('pulse-animation');
-            }
-        }
-        
-        /**
-         * Filters and renders the machines view based on search/status.
-         */
-        function filterAndRenderMachines() {
-            const searchQuery = document.getElementById('search-input')?.value.toLowerCase() || '';
-            const isMobile = window.innerWidth < 640;
-            const statusFilterElement = isMobile ? document.getElementById('status-filter-mobile') : document.getElementById('status-filter');
-            const statusFilter = statusFilterElement?.value || '';
-            
-            let filteredMachines = allMachines;
-            if (searchQuery) {
-                filteredMachines = filteredMachines.filter(record => {
-                    const fields = record.fields;
-                    for (const key in fields) {
-                        const value = fields[key];
-                        if (value !== null && value !== undefined && String(value).toLowerCase().includes(searchQuery)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
-            }
-            if (statusFilter) {
-                filteredMachines = filteredMachines.filter(record => record.fields['Machine Status'] === statusFilter);
-            }
-            renderMachineCards(filteredMachines);
-        }
-
-        /**
-         * Filters and renders the maintenance logs view.
-         */
-        function filterAndRenderMaintenanceLogs() {
-            const searchQuery = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
-            const statusFilter = document.getElementById('maintenance-view-status-filter')?.value || '';
-            
-            let filteredLogs = allMaintenanceLogs.filter(log => {
-                const consumableName = log.fields['Consumable Part'] ? dataCache[log.fields['Consumable Part'][0]]?.Name || '' : '';
-                const machineId = log.fields['Machine'] ? dataCache[log.fields['Machine'][0]]?.['Machine ID'] || '' : '';
-                
-                const searchMatch = !searchQuery || 
-                                    consumableName.toLowerCase().includes(searchQuery) ||
-                                    machineId.toLowerCase().includes(searchQuery);
-                                    
-                const statusMatch = !statusFilter || (statusFilter === 'Overdue' && isLogOverdue(log)) || (statusFilter === 'On Schedule' && !isLogOverdue(log));
-                
-                return searchMatch && statusMatch;
-            });
-            
-            // Primary sort: Overdue logs at the top
-            filteredLogs.sort((a, b) => {
-                const aOverdue = isLogOverdue(a);
-                const bOverdue = isLogOverdue(b);
-                if (aOverdue && !bOverdue) return -1;
-                if (!aOverdue && bOverdue) return 1;
-                return 0; // Maintain original order for same-status items
-            });
-            
-            renderMaintenanceLogsTable(filteredLogs, 'maintenance-logs-table-body');
-        }
-
-        /**
-         * Filters and renders the consumables view.
-         */
-        function filterAndRenderConsumables() {
-            const searchQuery = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
-            const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
-            
-            let filteredConsumables = allConsumables.filter(c => {
-                const fields = c.fields;
-                const searchMatch = !searchQuery || 
-                                    (fields['Name'] && fields['Name'].toLowerCase().includes(searchQuery)) ||
-                                    (fields['Consumable ID'] && fields['Consumable ID'].toLowerCase().includes(searchQuery)) ||
-                                    (fields['Location'] && fields['Location'].toLowerCase().includes(searchQuery));
-                
-                const statusMatch = !statusFilter || fields['Stock Status'] === statusFilter;
-                
-                return searchMatch && statusMatch;
-            });
-            
-            // Primary sort: Low stock items at the top
-            filteredConsumables.sort((a, b) => {
-                const aLowStock = a.fields['Stock Status'] === 'Low Stock';
-                const bLowStock = b.fields['Stock Status'] === 'Low Stock';
-                if (aLowStock && !bLowStock) return -1;
-                if (!aLowStock && bLowStock) return 1;
-                return 0; // Maintain original order for same-status items
-            });
-            
-            renderConsumablesTable(filteredConsumables, 'consumables-table-body');
-        }
-        
-        /**
-         * Checks if a maintenance log is overdue.
-         */
-        function isLogOverdue(log) {
-            const nextServiceDate = log.fields['Next Service Due'];
-            if (!nextServiceDate) return false;
-            const today = new Date();
-            return new Date(nextServiceDate) < today;
-        }
-
-        // --- Event Listener Attachment Functions ---
-
-        function attachMachinesViewListeners() {
-            const searchInput = document.getElementById('search-input');
-            const statusFilter = document.getElementById('status-filter');
-            const statusFilterMobile = document.getElementById('status-filter-mobile');
-            const loadMoreBtn = document.getElementById('load-more-btn');
-            const expandAllBtn = document.getElementById('expand-all-btn');
-            const collapseAllBtn = document.getElementById('collapse-all-btn');
-            const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
-
-            if (searchInput) searchInput.addEventListener('input', () => filterAndRenderMachines());
-            if (statusFilter) statusFilter.addEventListener('change', () => filterAndRenderMachines());
-            if (statusFilterMobile) statusFilterMobile.addEventListener('change', () => filterAndRenderMachines());
-            if (loadMoreBtn) loadMoreBtn.addEventListener('click', loadMoreMachines);
-            if (expandAllBtn) expandAllBtn.addEventListener('click', expandAllCards);
-            if (collapseAllBtn) collapseAllBtn.addEventListener('click', collapseAllCards);
-            if (toggleFiltersBtn) toggleFiltersBtn.addEventListener('click', toggleMobileFilters);
-        }
-        
-        function attachMaintenanceViewListeners() {
-            const searchInput = document.getElementById('maintenance-view-search-input');
-            const statusFilter = document.getElementById('maintenance-view-status-filter');
-            if (searchInput) searchInput.addEventListener('input', () => filterAndRenderMaintenanceLogs());
-            if (statusFilter) statusFilter.addEventListener('change', () => filterAndRenderMaintenanceLogs());
-        }
-        
-        function attachConsumablesViewListeners() {
-            const searchInput = document.getElementById('consumables-view-search-input');
-            const statusFilter = document.getElementById('consumables-view-status-filter');
-            if (searchInput) searchInput.addEventListener('input', () => filterAndRenderConsumables());
-            if (statusFilter) statusFilter.addEventListener('change', () => filterAndRenderConsumables());
-        }
-
-        // --- Old Modal and Machine-Specific Functions (Kept for Machines View) ---
-        
-        function sortModalConsumables(field) {
-            if (sortState.field === field) {
-                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortState.field = field;
-                sortState.direction = 'asc';
-            }
-            // A full implementation would need to re-render the modal table/cards.
-            // For now, this is just a placeholder.
-        }
-
-        function showConsumablesModal(title, records) {
-            const modal = document.getElementById('consumables-modal');
-            const modalTitle = document.getElementById('consumables-modal-title');
-            modalTitle.textContent = title;
-            currentModalConsumables = records;
-            // Render the modal content
-            if (window.innerWidth >= 640) {
-                 renderConsumablesTable(records, 'modal-consumables-table-body');
-                 document.getElementById('consumables-table-wrapper').classList.remove('hidden');
-                 document.getElementById('modal-consumables-card-view').classList.add('hidden');
-            } else {
-                renderModalConsumables(records, 'modal-consumables-card-view');
-                document.getElementById('modal-consumables-card-view').classList.remove('hidden');
-                document.getElementById('consumables-table-wrapper').classList.add('hidden');
-            }
-            modal.classList.remove('hidden');
-        }
-        
-        function showMaintenanceLogsModal(title, records) {
-            const modal = document.getElementById('maintenance-logs-modal');
-            const modalTitle = document.getElementById('maintenance-logs-modal-title');
-            modalTitle.textContent = title;
-            currentModalMaintenanceLogs = records;
-            // Simplified rendering for the modal content
-            renderModalMaintenanceLogs(records, 'maintenance-logs-container');
-            modal.classList.remove('hidden');
-        }
-
-        function hideConsumablesModal() {
-            const modal = document.getElementById('consumables-modal');
-            modal.classList.add('hidden');
-            document.getElementById('consumable-search-input').value = '';
-        }
-        
-        function hideMaintenanceLogsModal() {
-            const modal = document.getElementById('maintenance-logs-modal');
-            modal.classList.add('hidden');
-            document.getElementById('maintenance-log-search-input').value = '';
-        }
-
-        function displayConsumablesForMachine(machineRecordId) {
-            const machineRecord = dataCache[machineRecordId];
-            if (!machineRecord || !machineRecord['Consumables']) {
-                showConsumablesModal(`Consumables for ${machineRecord ? machineRecord['Machine ID'] : 'Unknown Machine'}`, []);
-                return;
-            }
-            const consumableIds = machineRecord['Consumables'];
-            const filteredConsumables = allConsumables.filter(c => consumableIds.includes(c.id));
-            showConsumablesModal(`Consumables for ${machineRecord['Machine ID']}`, filteredConsumables);
-        }
-        
-        function displayMaintenanceLogsForMachine(machineRecordId) {
-            const machineRecord = dataCache[machineRecordId];
-            if (!machineRecord) {
-                showMaintenanceLogsModal('Maintenance Logs for Unknown Machine', []);
-                return;
-            }
-            const logsForMachine = allMaintenanceLogs.filter(log => {
-                const linkedMachineIds = log.fields['Machine'];
-                return linkedMachineIds && linkedMachineIds.includes(machineRecordId);
-            });
-            showMaintenanceLogsModal(`Maintenance Logs for ${machineRecord['Machine ID']}`, logsForMachine);
-        }
-        
-        function toggleMobileFilters() {
-            const collapsibleContent = document.getElementById('collapsible-filter-content');
-            const toggleBtn = document.getElementById('toggle-filters-btn');
-            const isExpanded = collapsibleContent.classList.toggle('expanded');
-            if (isExpanded) {
-                toggleBtn.textContent = 'Hide Filters';
-            } else {
-                toggleBtn.textContent = 'Show Filters';
-            }
-        }
-
-        function expandAllCards() {
-            expandedCards = new Set(allMachines.map(record => record.id));
-            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            filterAndRenderMachines();
-        }
-
-        function collapseAllCards() {
-            expandedCards.clear();
-            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            filterAndRenderMachines();
-        }
-        
-        function loadMoreMachines() {
-            machinesToRenderCount += 10;
-            filterAndRenderMachines();
-        }
-
-        // --- Main App Initialization ---
-        
-        async function initApp() {
+            console.error(`Could not fetch data from ${tableName}:`, error);
             const container = document.getElementById('app-container');
             if (container) {
-                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center py-20">
-                        <div class="loading-spinner mb-4"></div>
-                        <p class="text-gray-500 text-lg">Loading all data from Airtable...</p>
-                    </div>
-                `;
+                container.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load data for <strong>${tableName}</strong>. Please check the API key, table name, and network connection.</p>`;
             }
-            
-            // Fetch all data concurrently
-            const [machines, consumables, maintenanceLogs] = await Promise.all([
-                fetchAirtableData('Machines'),
-                fetchAirtableData('BSV 100 Consumables'),
-                fetchAirtableData('BSV Maintenance Logs')
-            ]);
-            
-            // Store fetched data in global variables
-            allMachines = machines;
-            allConsumables = consumables;
-            allMaintenanceLogs = maintenanceLogs;
-
-            // Load persistent state for machines view
-            const savedExpandedCards = localStorage.getItem('expandedCards');
-            if (savedExpandedCards) {
-                expandedCards = new Set(JSON.parse(savedExpandedCards));
-            }
-            
-            // Set up back-to-top button
-            const backToTopBtn = document.getElementById('back-to-top-btn');
-            window.addEventListener('scroll', () => {
-                if (window.scrollY > 300) {
-                    backToTopBtn.classList.add('show');
-                } else {
-                    backToTopBtn.classList.remove('show');
-                }
-            });
-            backToTopBtn.addEventListener('click', () => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-            
-            // Initial render of the dashboard
-            navigateTo('dashboard');
-
-            // Attach modal event listeners
-            document.getElementById('close-consumables-modal-btn').addEventListener('click', hideConsumablesModal);
-            document.getElementById('consumables-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'consumables-modal') hideConsumablesModal();
-            });
-            document.getElementById('consumable-search-input').addEventListener('input', () => {
-                const searchQuery = document.getElementById('consumable-search-input').value.toLowerCase();
-                const filteredConsumables = currentModalConsumables.filter(c => {
-                    const fields = c.fields;
-                    return (fields['Name'] && fields['Name'].toLowerCase().includes(searchQuery)) ||
-                           (fields['Consumable ID'] && fields['Consumable ID'].toLowerCase().includes(searchQuery));
-                });
-                if (window.innerWidth >= 640) {
-                    renderConsumablesTable(filteredConsumables, 'modal-consumables-table-body');
-                } else {
-                    renderModalConsumables(filteredConsumables, 'modal-consumables-card-view');
-                }
-            });
-            
-            document.getElementById('close-maintenance-logs-modal-btn').addEventListener('click', hideMaintenanceLogsModal);
-            document.getElementById('maintenance-logs-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'maintenance-logs-modal') hideMaintenanceLogsModal();
-            });
-            document.getElementById('maintenance-log-search-input').addEventListener('input', () => {
-                const searchQuery = document.getElementById('maintenance-log-search-input').value.toLowerCase();
-                const filteredLogs = currentModalMaintenanceLogs.filter(log => {
-                    const consumableName = log.fields['Consumable Part'] ? dataCache[log.fields['Consumable Part'][0]]?.Name || '' : '';
-                    const machineId = log.fields['Machine'] ? dataCache[log.fields['Machine'][0]]?.['Machine ID'] || '' : '';
-                    return consumableName.toLowerCase().includes(searchQuery) || machineId.toLowerCase().includes(searchQuery);
-                });
-                renderModalMaintenanceLogs(filteredLogs, 'maintenance-logs-container');
-            });
+            return [];
         }
+    }
+    
+    /**
+     * Navigates to a different page/view of the application.
+     * @param {string} page - The name of the page to navigate to ('dashboard', 'machines', 'maintenance', 'consumables').
+     */
+    function navigateTo(page) {
+        currentPage = page;
+        renderPage();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    /**
+     * Renders the current page based on the currentPage global variable.
+     */
+    function renderPage() {
+        const container = document.getElementById('app-container');
+        if (!container) return;
+        container.innerHTML = '';
         
-        window.onload = initApp;
-
-    </script>
-</body>
-</html>
+        if (currentPage === 'dashboard') {
+            renderDashboard();
+        } else if (currentPage === 'machines') {
+            renderMachinesView();
+        } else if (currentPage === 'maintenance') {
+            renderMaintenanceView();
+        } else if (currentPage === 'consumables') {
+            renderConsumablesView();
+        }
+    }
+    
+    /**
+     * Renders the main dashboard view with navigation cards.
+     */
+    function renderDashboard() {
+        const container = document.getElementById('app-container');
+        container.innerHTML = `
+            <section class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                <div class="bg-blue-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('machines')">
+                    <i class="fas fa-robot text-4xl mb-4"></i>
+                    <h2 class="text-xl sm:text-2xl font-bold">Machines</h2>
