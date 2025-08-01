@@ -103,7 +103,8 @@
     </header>
 
     <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
-        </main>
+        <!-- Content will be rendered dynamically here -->
+    </main>
     
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
@@ -133,11 +134,13 @@
                         </tr>
                     </thead>
                     <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200">
-                        </tbody>
+                        <!-- Consumable table rows will be dynamically inserted here -->
+                    </tbody>
                 </table>
             </div>
             <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4">
-                </div>
+                <!-- Consumable cards will be dynamically inserted here -->
+            </div>
         </div>
     </div>
     
@@ -154,7 +157,8 @@
                 </div>
             </div>
             <div id="maintenance-logs-container" class="space-y-4">
-                </div>
+                <!-- Maintenance log cards will be dynamically inserted here -->
+            </div>
         </div>
     </div>
 
@@ -837,14 +841,25 @@
             </div>`;
 
         try {
-            const [machines, consumables, maintenanceLogs] = await Promise.all([
+            // Fetch data from all relevant tables concurrently
+            const [
+                machines, 
+                consumables, 
+                maintenanceLogs,
+                bsvConsumables,
+                bsvMaintenanceLogs
+            ] = await Promise.all([
                 fetchAirtableData('Machines'),
                 fetchAirtableData('Consumables'),
-                fetchAirtableData('Maintenance Logs')
+                fetchAirtableData('Maintenance Logs'),
+                fetchAirtableData('BSV 100 Consumables'),
+                fetchAirtableData('BSV Maintenance Logs')
             ]);
+
+            // Merge the data from the different tables
             allMachines = machines;
-            allConsumables = consumables;
-            allMaintenanceLogs = maintenanceLogs;
+            allConsumables = consumables.concat(bsvConsumables);
+            allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
             
             const savedExpanded = localStorage.getItem('expandedCards');
             if (savedExpanded) {
