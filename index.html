@@ -175,9 +175,10 @@
                 'Last Service Date', 'Next Service Due'
             ];
             
+            // Updated consumable field order as per user request
             const consumableFieldOrder = [
-                'Part Number', 'Manufacturer', 'Cost/Unit', 'Unit', 'Quantity on Hand',
-                'Reorder Point', 'Lead Time (days)'
+                'Cost/Unit', 'Unit', 'Supplier', 'Location', 'Reorder Point', 
+                'Current Stock', 'Stock Status'
             ];
 
             records.forEach(record => {
@@ -286,7 +287,8 @@
             const modalTitle = document.getElementById('modal-title');
             
             modalTitle.textContent = title;
-            renderCards(records, 'modal-consumables-container', 'Part Number', ['Machines'], tableType);
+            // Updated to use 'Name' as the title field for consumables
+            renderCards(records, 'modal-consumables-container', 'Name', ['Machines'], tableType);
             modal.classList.remove('hidden');
         }
 
