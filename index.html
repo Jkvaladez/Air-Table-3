@@ -175,7 +175,6 @@
     let allMachines = [];
     let allConsumables = [];
     let allMaintenanceLogs = [];
-    let consumableToMachineMap = new Map();
     let currentPage = 'dashboard';
     let expandedCards = new Set();
     let machinesToRenderCount = 10;
@@ -408,13 +407,12 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used On</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumable ID</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/Unit</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Status</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reorder Point</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/Unit</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                             </tr>
@@ -543,34 +541,6 @@
         return aID.localeCompare(bID);
     }
 
-    function attachMachinesViewListeners() {
-        document.getElementById('search-input')?.addEventListener('input', filterAndRenderMachines);
-        document.getElementById('status-filter')?.addEventListener('change', filterAndRenderMachines);
-        document.getElementById('status-filter-mobile')?.addEventListener('change', filterAndRenderMachines);
-
-        document.getElementById('expand-all-btn')?.addEventListener('click', () => {
-            allMachines.forEach(m => expandedCards.add(m.id));
-            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            filterAndRenderMachines();
-        });
-        document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
-            expandedCards.clear();
-            localStorage.setItem('expandedCards', JSON.stringify([]));
-            filterAndRenderMachines();
-        });
-
-        document.getElementById('toggle-filters-btn')?.addEventListener('click', (e) => {
-            const content = document.getElementById('collapsible-filter-content');
-            content.classList.toggle('expanded');
-            e.currentTarget.textContent = content.classList.contains('expanded') ? 'Hide Filters' : 'Show Filters';
-        });
-
-        document.getElementById('load-more-btn')?.addEventListener('click', () => {
-            machinesToRenderCount += 10;
-            filterAndRenderMachines();
-        });
-    }
-
     function filterAndRenderMachines() {
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
         let statusFilter = document.getElementById('status-filter')?.value || '';
@@ -608,10 +578,10 @@
         const cardView = document.getElementById('modal-consumables-card-view');
         if (!tableBody || !cardView) return;
 
-        const contentHtml = consumables.map(c => getModalConsumableRowHtml(c)).join('');
+        const contentHtml = consumables.map(c => getModalConsumableRowHtml(c.fields)).join('');
         tableBody.innerHTML = contentHtml || `<tr><td colspan="9" class="text-center py-4">No consumables linked to this machine.</td></tr>`;
         
-        const cardHtml = consumables.map(c => getConsumableCardHtml(c)).join('');
+        const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables linked to this machine.</p>`;
     }
 
@@ -651,13 +621,7 @@
     }
 
     // --- ALL CONSUMABLES VIEW FUNCTIONS ---
-
-    function attachConsumablesViewListeners() {
-        document.getElementById('consumables-view-search-input')?.addEventListener('input', filterAndRenderConsumables);
-        document.getElementById('consumables-view-status-filter')?.addEventListener('change', filterAndRenderConsumables);
-        document.getElementById('consumables-view-sort')?.addEventListener('change', filterAndRenderConsumables);
-    }
-
+    
     function filterAndRenderConsumables() {
         const searchTerm = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
@@ -693,12 +657,11 @@
     function renderAllConsumables(consumables) {
         const tableBody = document.getElementById('consumables-table-body');
         if (!tableBody) return;
-        const tableHtml = consumables.map(c => getConsumableRowHtml(c)).join('');
-        tableBody.innerHTML = tableHtml || `<tr><td colspan="10" class="text-center py-4">No consumables found.</td></tr>`;
+        const tableHtml = consumables.map(c => getConsumableRowHtml(c.fields)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`;
     }
 
-    function getConsumableRowHtml(record) {
-        const fields = record.fields;
+    function getConsumableRowHtml(fields) {
         const stockStatus = fields['Stock Status'];
         let rowClass = '';
         let statusTextClass = '';
@@ -710,26 +673,21 @@
             statusTextClass = 'text-yellow-700 font-semibold';
         }
 
-        const usedOnMachines = consumableToMachineMap.get(record.id) || [];
-        const usedOnHtml = usedOnMachines.join(', ');
-
         return `
             <tr class="${rowClass}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${usedOnHtml || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${stockStatus || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Reorder Point'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Current Stock'] ?? 0}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Location'] || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline"><a href="${fields['Link'] || '#'}" target="_blank" rel="noopener noreferrer">Link</a></td>
             </tr>`;
     }
 
-    function getModalConsumableRowHtml(record) {
-        const fields = record.fields;
+    function getModalConsumableRowHtml(fields) {
         const stockStatus = fields['Stock Status'];
         let statusTextClass = '';
         if (stockStatus === 'Out of Stock') {
@@ -751,8 +709,7 @@
             </tr>`;
     }
 
-    function getConsumableCardHtml(record) {
-        const fields = record.fields;
+    function getConsumableCardHtml(fields) {
         const stockStatus = fields['Stock Status'];
         let statusClass = '';
         if (stockStatus === 'Out of Stock') statusClass = 'bg-red-200 text-red-800';
@@ -775,12 +732,6 @@
     }
 
     // --- ALL MAINTENANCE VIEW FUNCTIONS ---
-
-    function attachMaintenanceViewListeners() {
-        document.getElementById('maintenance-view-search-input')?.addEventListener('input', filterAndRenderMaintenanceLogs);
-        document.getElementById('maintenance-view-status-filter')?.addEventListener('change', filterAndRenderMaintenanceLogs);
-        document.getElementById('maintenance-view-sort')?.addEventListener('change', filterAndRenderMaintenanceLogs);
-    }
     
     function filterAndRenderMaintenanceLogs() {
         const searchTerm = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
@@ -859,22 +810,29 @@
                 </div>
             </div>`;
     }
+    
+    // --- ATTACH EVENT LISTENER FUNCTIONS ---
 
-    function buildConsumableToMachineMap() {
-        consumableToMachineMap.clear();
-        allMachines.forEach(machine => {
-            const machineId = machine.fields['Machine ID'];
-            const consumableIds = machine.fields.Consumables;
-
-            if (machineId && consumableIds && Array.isArray(consumableIds)) {
-                consumableIds.forEach(consumableId => {
-                    if (!consumableToMachineMap.has(consumableId)) {
-                        consumableToMachineMap.set(consumableId, []);
-                    }
-                    consumableToMachineMap.get(consumableId).push(machineId);
-                });
-            }
+    function attachMachinesViewListeners() {
+        document.getElementById('search-input')?.addEventListener('input', filterAndRenderMachines);
+        document.getElementById('status-filter')?.addEventListener('change', filterAndRenderMachines);
+        document.getElementById('status-filter-mobile')?.addEventListener('change', filterAndRenderMachines);
+        document.getElementById('load-more-btn')?.addEventListener('click', () => {
+            machinesToRenderCount += 10;
+            filterAndRenderMachines();
         });
+    }
+
+    function attachMaintenanceViewListeners() {
+        document.getElementById('maintenance-view-search-input')?.addEventListener('input', filterAndRenderMaintenanceLogs);
+        document.getElementById('maintenance-view-status-filter')?.addEventListener('change', filterAndRenderMaintenanceLogs);
+        document.getElementById('maintenance-view-sort')?.addEventListener('change', filterAndRenderMaintenanceLogs);
+    }
+    
+    function attachConsumablesViewListeners() {
+        document.getElementById('consumables-view-search-input')?.addEventListener('input', filterAndRenderConsumables);
+        document.getElementById('consumables-view-status-filter')?.addEventListener('change', filterAndRenderConsumables);
+        document.getElementById('consumables-view-sort')?.addEventListener('change', filterAndRenderConsumables);
     }
 
     // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
@@ -906,8 +864,6 @@
             allConsumables = consumables.concat(bsvConsumables);
             allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
             
-            buildConsumableToMachineMap();
-
             const savedExpanded = localStorage.getItem('expandedCards');
             if (savedExpanded) {
                 expandedCards = new Set(JSON.parse(savedExpanded));
