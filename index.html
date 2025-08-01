@@ -256,7 +256,7 @@
         const pageTitles = {
             dashboard: 'Airtable Dashboard',
             machines: 'Machines',
-            maintenance: 'Maintenance',
+            maintenance: 'Maintenance Logs',
             consumables: 'Consumables'
         };
         document.getElementById('page-title').textContent = pageTitles[page] || 'Dashboard';
@@ -387,7 +387,7 @@
         return aID.localeCompare(bID);
     }
     function filterAndRenderMachines() {
-        if (!allMachines.length) { document.getElementById('machines-container').innerHTML = `<p class="text-gray-500 col-span-full text-center">Loading data or no machines found.</p>`; return; }
+        if (!allMachines.length) { document.getElementById('machines-container').innerHTML = `<p class="text-gray-500 col-span-full text-center">No machines found.</p>`; return; }
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
         let statusFilter = document.getElementById('status-filter')?.value || '';
         let filteredMachines = allMachines.filter(record => {
@@ -467,7 +467,7 @@
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
     }
     function filterAndRenderConsumables() {
-        if (!allConsumables.length) { document.getElementById('consumables-table-body').innerHTML = `<tr><td colspan="9" class="text-center py-4">Loading data...</td></tr>`; return; }
+        if (!allConsumables.length) { document.getElementById('consumables-table-body').innerHTML = `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`; return; }
         const searchTerm = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
         const sortBy = document.getElementById('consumables-view-sort')?.value || 'status';
@@ -537,7 +537,7 @@
         return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${fields['Name'] || 'N/A'}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${stockStatus}</span></div><p class="text-sm text-gray-500 mb-2">${fields['Consumable ID'] || 'N/A'}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Stock:</strong> ${fields['Current Stock'] ?? 0} / ${fields['Reorder Point'] || 'N/A'}</p><p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</td></div></div>`;
     }
     function filterAndRenderMaintenanceLogs() {
-        if (!allMaintenanceLogs.length) { document.getElementById('maintenance-logs-table-body').innerHTML = `<tr><td colspan="5" class="text-center py-4">Loading data...</td></tr>`; return; }
+        if (!allMaintenanceLogs.length) { document.getElementById('maintenance-logs-table-body').innerHTML = `<tr><td colspan="5" class="text-center py-4">No maintenance logs found.</td></tr>`; return; }
         const searchTerm = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('maintenance-view-status-filter')?.value || '';
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
@@ -653,8 +653,6 @@
         document.getElementById('consumables-view-status-filter')?.addEventListener('change', filterAndRenderConsumables);
         document.getElementById('consumables-view-sort')?.addEventListener('change', filterAndRenderConsumables);
     }
-    
-    // --- Scanner Functions ---
     function onScanSuccess(decodedText, decodedResult) {
         stopScanner();
         handleScanResult(decodedText);
@@ -709,8 +707,6 @@
         }
         scannerContainer.classList.add('hidden');
     }
-
-    // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
     async function initializeApp() {
         const appContainer = document.getElementById('app-container');
         appContainer.innerHTML = `<div class="flex flex-col items-center justify-center h-64"><div class="loading-spinner mb-4"></div><p class="text-gray-600">Loading initial data...</p></div>`;
@@ -730,13 +726,10 @@
             navigateTo('dashboard');
         } catch (error) {
             console.error("Initialization failed:", error);
-            // Error is already displayed in the fetch function
         }
     }
-    
     document.addEventListener('DOMContentLoaded', () => {
         initializeApp();
-        
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -748,7 +741,6 @@
                 }
             });
         });
-
         document.getElementById('mobile-menu-button').addEventListener('click', () => {
             const mobileMenu = document.getElementById('mobile-menu');
             const icon = document.getElementById('mobile-menu-icon');
@@ -756,11 +748,9 @@
             icon.classList.toggle('fa-bars', mobileMenu.classList.contains('hidden'));
             icon.classList.toggle('fa-times', !mobileMenu.classList.contains('hidden'));
         });
-
         document.getElementById('scan-btn-desktop')?.addEventListener('click', startScanner);
         document.getElementById('scan-btn-mobile')?.addEventListener('click', startScanner);
         document.getElementById('scanner-close-btn')?.addEventListener('click', stopScanner);
-
         const backToTopBtn = document.getElementById('back-to-top-btn');
         if (backToTopBtn) {
             window.onscroll = () => {
@@ -768,10 +758,8 @@
             };
             backToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
         }
-        
         document.getElementById('close-consumables-modal-btn')?.addEventListener('click', () => document.getElementById('consumables-modal').classList.add('hidden'));
         document.getElementById('close-maintenance-logs-modal-btn')?.addEventListener('click', () => document.getElementById('maintenance-logs-modal').classList.add('hidden'));
-        
         document.getElementById('consumable-search-input')?.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filtered = currentModalConsumables.filter(c => 
