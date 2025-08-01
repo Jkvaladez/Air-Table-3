@@ -26,6 +26,29 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        /* Modal backdrop styling */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        /* Modal content styling */
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 p-8">
@@ -56,22 +79,22 @@
                 </div>
             </div>
         </section>
+    </main>
 
-        <!-- BSV 100 Consumables Section (Initially Hidden) -->
-        <!-- This section is hidden by default using the 'hidden' Tailwind class. -->
-        <section id="consumables-section" class="bg-white p-6 md:p-8 rounded-xl shadow-lg hidden">
+    <!-- Consumables Modal -->
+    <div id="consumables-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
             <div class="flex justify-between items-center mb-6">
-                <h2 id="consumables-title" class="text-3xl font-bold text-gray-900">BSV 100 Consumables</h2>
-                <button id="show-all-consumables-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-300 hidden">
-                    Show All Consumables
+                <h2 id="modal-title" class="text-3xl font-bold text-gray-900">Consumables</h2>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-2xl"></i>
                 </button>
             </div>
-            <div id="consumables-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Content will be dynamically inserted here -->
+            <div id="modal-consumables-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Consumable cards will be dynamically inserted here -->
             </div>
-        </section>
-
-    </main>
+        </div>
+    </div>
 
     <script>
         // Airtable configuration
@@ -85,8 +108,8 @@
         let machinesData = [];
         let consumablesData = [];
 
-        // Utility function to fetch data from a table
-        async function fetchAirtableData(tableName) {
+        // Utility function to fetch data from a table with exponential backoff
+        async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
             try {
                 const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
                     headers: {
@@ -100,6 +123,7 @@
 
                 const data = await response.json();
                 
+                // Cache the data for quick lookups
                 data.records.forEach(record => {
                     dataCache[record.id] = record.fields;
                 });
@@ -107,16 +131,23 @@
                 return data.records;
 
             } catch (error) {
+                if (retries > 0 && error.message.includes('status: 429')) {
+                    console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
+                    await new Promise(res => setTimeout(res, delay));
+                    return fetchAirtableData(tableName, retries - 1, delay * 2); // Exponential backoff
+                }
                 console.error(`Could not fetch data from ${tableName}:`, error);
                 const container = document.getElementById(getContainerId(tableName));
-                container.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load data for **${tableName}**. Please check the API key, table name, and network connection.</p>`;
+                if (container) {
+                     container.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load data for **${tableName}**. Please check the API key, table name, and network connection.</p>`;
+                }
                 return [];
             }
         }
 
         function getContainerId(tableName) {
             if (tableName === 'Machines') return 'machines-container';
-            if (tableName === 'BSV 100 Consumables') return 'consumables-container';
+            if (tableName === 'BSV 100 Consumables') return 'modal-consumables-container';
             return '';
         }
 
@@ -130,6 +161,7 @@
          */
         function renderCards(records, containerId, titleFieldName, fieldsToSkip = [], tableType) {
             const container = document.getElementById(containerId);
+            if (!container) return; // Guard against non-existent containers
             container.innerHTML = '';
             if (records.length === 0) {
                 container.innerHTML = `<p class="text-gray-500 col-span-full text-center">No records found.</p>`;
@@ -178,7 +210,7 @@
                     }
 
                     // Skip if the field is not present or if it's in the skip list.
-                    if (!fieldValue || fieldsToSkip.includes(fieldName)) {
+                    if (fieldsToSkip.includes(fieldName)) {
                         return;
                     }
 
@@ -203,7 +235,7 @@
                         let displayValue = fieldValue.join(', ');
                         cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${displayValue}</p>`;
                     } else {
-                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${fieldValue}</p>`;
+                        cardHtml += `<p class="text-gray-600"><span class="font-semibold">${fieldName}:</span> ${fieldValue || 'N/A'}</p>`;
                     }
                 });
 
@@ -244,57 +276,55 @@
         }
         
         /**
-         * Filters the consumables and displays them for a specific machine.
+         * Shows the modal with the given title and content.
+         * @param {string} title - The title for the modal.
+         * @param {Array} records - The records to display in the modal.
+         * @param {string} tableType - The type of table for rendering ('Consumables').
+         */
+        function showConsumablesModal(title, records, tableType) {
+            const modal = document.getElementById('consumables-modal');
+            const modalTitle = document.getElementById('modal-title');
+            
+            modalTitle.textContent = title;
+            renderCards(records, 'modal-consumables-container', 'Part Number', ['Machines'], tableType);
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the modal.
+         */
+        function hideConsumablesModal() {
+            const modal = document.getElementById('consumables-modal');
+            modal.classList.add('hidden');
+        }
+
+        /**
+         * Filters the consumables and displays them for a specific machine inside a modal.
          * @param {string} machineRecordId - The ID of the machine record.
          */
         function displayConsumablesForMachine(machineRecordId) {
-            console.log(`Displaying consumables for machine ID: ${machineRecordId}`);
             const machineRecord = dataCache[machineRecordId];
             if (!machineRecord || !machineRecord['Consumables']) {
-                console.error('No machine record or consumables found.');
-                const consumablesContainer = document.getElementById('consumables-container');
-                consumablesContainer.innerHTML = `<p class="text-gray-500 col-span-full text-center">No consumables found for this machine.</p>`;
-                
-                const consumablesSection = document.getElementById('consumables-section');
-                const consumablesTitle = document.getElementById('consumables-title');
-                const showAllBtn = document.getElementById('show-all-consumables-btn');
-
-                consumablesTitle.textContent = `Consumables for ${machineRecord ? machineRecord['Machine ID'] + ' - ' + machineRecord['Name'] : 'Unknown Machine'}`;
-                showAllBtn.classList.remove('hidden');
-                consumablesSection.classList.remove('hidden');
+                const consumablesContainer = document.getElementById('modal-consumables-container');
+                if (consumablesContainer) {
+                    consumablesContainer.innerHTML = `<p class="text-gray-500 col-span-full text-center">No consumables found for this machine.</p>`;
+                }
+                const title = `Consumables for ${machineRecord ? machineRecord['Machine ID'] + ' - ' + machineRecord['Name'] : 'Unknown Machine'}`;
+                showConsumablesModal(title, [], 'Consumables');
                 return;
             }
             
             const consumableIds = machineRecord['Consumables'];
             const filteredConsumables = consumablesData.filter(c => consumableIds.includes(c.id));
-            console.log("Filtered consumables:", filteredConsumables);
             
-            const consumablesSection = document.getElementById('consumables-section');
-            const consumablesTitle = document.getElementById('consumables-title');
-            const showAllBtn = document.getElementById('show-all-consumables-btn');
-
-            consumablesTitle.textContent = `Consumables for ${machineRecord['Machine ID']} - ${machineRecord['Name']}`;
-            showAllBtn.classList.remove('hidden');
-            consumablesSection.classList.remove('hidden');
-
-            // Corrected: Use 'Part Number' as the title field for consumables
-            renderCards(filteredConsumables, 'consumables-container', 'Part Number', ['Machines'], 'Consumables');
+            const title = `Consumables for ${machineRecord['Machine ID']} - ${machineRecord['Name']}`;
+            showConsumablesModal(title, filteredConsumables, 'Consumables');
         }
         
         /**
-         * Reverts the consumables section to show all consumables.
+         * Function to handle filtering based on search input
+         * It searches across all fields of the machine records.
          */
-        function showAllConsumables() {
-            const consumablesTitle = document.getElementById('consumables-title');
-            const showAllBtn = document.getElementById('show-all-consumables-btn');
-
-            consumablesTitle.textContent = 'BSV 100 Consumables';
-            showAllBtn.classList.add('hidden');
-            
-            renderCards(consumablesData, 'consumables-container', 'Part Number', ['Machines'], 'Consumables');
-        }
-
-        // Function to handle filtering based on search input
         function filterRecords(records, query) {
             if (!query) {
                 return records;
@@ -322,9 +352,11 @@
                             return true;
                         }
                     } 
-                    // Handle text fields
-                    else if (typeof fieldValue === 'string' && fieldValue.toLowerCase().includes(lowerCaseQuery)) {
-                        return true;
+                    // Handle text fields and numbers as strings
+                    else if (typeof fieldValue === 'string' || typeof fieldValue === 'number') {
+                        if (String(fieldValue).toLowerCase().includes(lowerCaseQuery)) {
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -334,18 +366,22 @@
         // Main function to initialize the application
         async function initApp() {
             // Display loading spinners while data is being fetched
-            document.getElementById('machines-container').innerHTML = `
-                <div class="col-span-full flex flex-col items-center justify-center py-10">
-                    <div class="loading-spinner mb-4"></div>
-                    <p class="text-gray-500">Loading Machines...</p>
-                </div>
-            `;
-            
+            const machinesContainer = document.getElementById('machines-container');
+            if (machinesContainer) {
+                 machinesContainer.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-10">
+                        <div class="loading-spinner mb-4"></div>
+                        <p class="text-gray-500">Loading Machines...</p>
+                    </div>
+                `;
+            }
+
             const [machines, consumables] = await Promise.all([
                 fetchAirtableData('Machines'),
                 fetchAirtableData('BSV 100 Consumables')
             ]);
             
+            // Sort machines by Machine ID
             machines.sort((a, b) => {
                 const machineIdA = a.fields['Machine ID'];
                 const machineIdB = b.fields['Machine ID'];
@@ -355,6 +391,7 @@
                 return numA - numB;
             });
             
+            // Sort consumables by Part Number
             consumables.sort((a, b) => {
                 const nameA = a.fields['Part Number'] || '';
                 const nameB = b.fields['Part Number'] || '';
@@ -367,17 +404,30 @@
             // Initial render of machines
             renderCards(machinesData, 'machines-container', 'Machine ID', [], 'Machines');
 
-            // Initial render of all consumables, which is hidden by default
-            renderCards(consumablesData, 'consumables-container', 'Part Number', ['Machines'], 'Consumables');
-
+            // Event listeners
             const searchInput = document.getElementById('search-input');
-            searchInput.addEventListener('input', (event) => {
-                const query = event.target.value;
-                const filteredMachines = filterRecords(machinesData, query);
-                renderCards(filteredMachines, 'machines-container', 'Machine ID', [], 'Machines');
-            });
+            if (searchInput) {
+                searchInput.addEventListener('input', (event) => {
+                    const query = event.target.value;
+                    const filteredMachines = filterRecords(machinesData, query);
+                    renderCards(filteredMachines, 'machines-container', 'Machine ID', [], 'Machines');
+                });
+            }
             
-            document.getElementById('show-all-consumables-btn').addEventListener('click', showAllConsumables);
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', hideConsumablesModal);
+            }
+            
+            const modalBackdrop = document.getElementById('consumables-modal');
+            if (modalBackdrop) {
+                 modalBackdrop.addEventListener('click', (e) => {
+                    // Close the modal only if the user clicks the backdrop, not the modal content
+                    if (e.target.id === 'consumables-modal') {
+                        hideConsumablesModal();
+                    }
+                });
+            }
         }
 
         window.onload = initApp;
