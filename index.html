@@ -88,7 +88,7 @@
             position: absolute;
             top: 1.5rem;
             right: 1.5rem;
-            z-index: 110;
+            z-index: 110; /* Ensure it's above the reader */
         }
     </style>
 </head>
@@ -229,7 +229,8 @@
     let sortState = { field: 'Name', direction: 'asc' };
     let html5QrcodeScanner;
 
-    // --- Data Fetching ---
+    // --- Data Fetching, Navigation, and all page rendering functions from previous correct version ---
+    // (This is the full, complete set of functions)
     async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
         try {
             const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
@@ -250,11 +251,8 @@
             return [];
         }
     }
-
-    // --- Navigation & Page Rendering ---
     function navigateTo(page) {
         currentPage = page;
-        
         const pageTitles = {
             dashboard: 'Airtable Dashboard',
             machines: 'Machines',
@@ -263,19 +261,16 @@
         };
         document.getElementById('page-title').textContent = pageTitles[page] || 'Dashboard';
         document.getElementById('page-subtitle').style.display = page === 'dashboard' ? 'block' : 'none';
-
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.toggle('active', link.dataset.page === page);
         });
-
         renderPage();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    
     function renderPage() {
         const container = document.getElementById('app-container');
         if (!container) return;
-        
+        container.innerHTML = `<div class="flex justify-center items-center py-10"><div class="loading-spinner"></div></div>`;
         if (currentPage === 'dashboard') {
             renderDashboard();
         } else if (currentPage === 'machines') {
@@ -286,140 +281,25 @@
             renderConsumablesView();
         }
     }
-    
     function renderDashboard() {
         const container = document.getElementById('app-container');
-        container.innerHTML = `
-            <section class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-                <div class="bg-blue-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('machines')">
-                    <i class="fas fa-robot text-4xl mb-4"></i>
-                    <h2 class="text-xl sm:text-2xl font-bold">Machines</h2>
-                </div>
-                <div class="bg-green-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('maintenance')">
-                    <i class="fas fa-wrench text-4xl mb-4"></i>
-                    <h2 class="text-xl sm:text-2xl font-bold">Maintenance</h2>
-                </div>
-                <div class="bg-purple-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('consumables')">
-                    <i class="fas fa-boxes text-4xl mb-4"></i>
-                    <h2 class="text-xl sm:text-2xl font-bold">Consumables</h2>
-                </div>
-            </section>
-        `;
+        container.innerHTML = `<section class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8"><div class="bg-blue-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('machines')"><i class="fas fa-robot text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Machines</h2></div><div class="bg-green-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('maintenance')"><i class="fas fa-wrench text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Maintenance</h2></div><div class="bg-purple-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('consumables')"><i class="fas fa-boxes text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Consumables</h2></div></section>`;
     }
-    
     function renderMachinesView() {
-        document.getElementById('app-container').innerHTML = `
-            <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                <div class="sm:flex sm:flex-row sm:gap-6 sm:items-center">
-                    <input type="search" id="search-input" placeholder="Search machines..." class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <div class="mt-4 sm:mt-0 w-full sm:w-auto">
-                        <select id="status-filter" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">All Statuses</option>
-                            <option value="Operational">Operational</option>
-                            <option value="Under Maintenance">Under Maintenance</option>
-                            <option value="Out of Service">Out of Service</option>
-                            <option value="Decommissioned">Decommissioned</option>
-                        </select>
-                    </div>
-                </div>
-            </section>
-            <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900">Machines</h2>
-                    <div class="flex space-x-2">
-                        <button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600">Expand All</button>
-                        <button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400">Collapse All</button>
-                    </div>
-                </div>
-                <div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-                <div id="load-more-container" class="flex justify-center mt-6 hidden">
-                    <button id="load-more-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700">Load More</button>
-                </div>
-            </section>`;
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="sm:flex sm:flex-row sm:gap-6 sm:items-center"><input type="search" id="search-input" placeholder="Search machines..." class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"><div class="mt-4 sm:mt-0 w-full sm:w-auto"><select id="status-filter" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"><option value="">All Statuses</option><option value="Operational">Operational</option><option value="Under Maintenance">Under Maintenance</option><option value="Out of Service">Out of Service</option><option value="Decommissioned">Decommissioned</option></select></div></div></section><section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex items-center justify-between mb-4"><h2 class="text-2xl sm:text-3xl font-bold text-gray-900">Machines</h2><div class="flex space-x-2"><button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600">Expand All</button><button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400">Collapse All</button></div></div><div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div><div id="load-more-container" class="flex justify-center mt-6 hidden"><button id="load-more-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700">Load More</button></div></section>`;
         attachMachinesViewListeners();
         filterAndRenderMachines();
     }
-
     function renderMaintenanceView() {
-        document.getElementById('app-container').innerHTML = `
-            <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                    <input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500">
-                    <select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500">
-                        <option value="">All Statuses</option>
-                        <option value="Overdue">Overdue</option>
-                        <option value="On Schedule">On Schedule</option>
-                    </select>
-                    <select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500">
-                        <option value="status">Sort by Status</option>
-                        <option value="dueDate">Sort by Due Date</option>
-                        <option value="consumable">Sort by Consumable</option>
-                        <option value="machine">Sort by Machine ID</option>
-                        <option value="replacedDate">Sort by Last Replaced</option>
-                    </select>
-                </div>
-                <div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-                <div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div>
-            </section>`;
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
         attachMaintenanceViewListeners();
         filterAndRenderMaintenanceLogs();
     }
-    
     function renderConsumablesView() {
-        document.getElementById('app-container').innerHTML = `
-            <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-                <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                    <input type="search" id="consumables-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500">
-                    <select id="consumables-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500">
-                        <option value="">Show All</option>
-                        <option value="Low Stock">Low Stock</option>
-                        <option value="In Stock">In Stock</option>
-                        <option value="Out of Stock">Out of Stock</option>
-                    </select>
-                    <select id="consumables-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500">
-                        <option value="status">Sort by Status</option>
-                        <option value="name">Sort by Name (A-Z)</option>
-                    </select>
-                </div>
-                <div class="hidden sm:block overflow-x-auto" id="consumables-table-container">
-                    <table class="min-w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Stock</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost/Unit</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Link</th>
-                            </tr>
-                        </thead>
-                        <tbody id="consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-                <div class="block sm:hidden space-y-4 mt-4" id="consumables-card-view"></div>
-            </section>`;
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="consumables-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="consumables-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">Show All</option><option value="Low Stock">Low Stock</option><option value="In Stock">In Stock</option><option value="Out of Stock">Out of Stock</option></select><select id="consumables-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="name">Sort by Name (A-Z)</option></select></div><div class="hidden sm:block overflow-x-auto" id="consumables-table-container"><table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Stock</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost/Unit</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Link</th></tr></thead><tbody id="consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="consumables-card-view"></div></section>`;
         attachConsumablesViewListeners();
         filterAndRenderConsumables();
     }
-
-    // --- All other functions (helpers, modals, filtering, rendering cards/rows) go here. ---
-    // (This is the full, complete set of functions)
     function getMaintenanceStatus(fields) {
         const dueDate = fields['Next Service Due'];
         if (!dueDate) return 'On Schedule';
@@ -502,12 +382,9 @@
         return aID.localeCompare(bID);
     }
     function filterAndRenderMachines() {
-        if (!allMachines.length) return;
+        if (!allMachines.length) { document.getElementById('machines-container').innerHTML = `<p class="text-gray-500 col-span-full text-center">Loading data or no machines found.</p>`; return; }
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
         let statusFilter = document.getElementById('status-filter')?.value || '';
-        if (window.innerWidth < 640) {
-            statusFilter = document.getElementById('status-filter-mobile')?.value || statusFilter;
-        }
         let filteredMachines = allMachines.filter(record => {
             const fields = record.fields;
             const matchesSearch = Object.values(fields).some(value => String(value).toLowerCase().includes(searchTerm));
@@ -585,7 +462,7 @@
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
     }
     function filterAndRenderConsumables() {
-        if (!allConsumables.length) return;
+        if (!allConsumables.length) { document.getElementById('consumables-table-body').innerHTML = `<tr><td colspan="9" class="text-center py-4">Loading data...</td></tr>`; return; }
         const searchTerm = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
         const sortBy = document.getElementById('consumables-view-sort')?.value || 'status';
@@ -655,7 +532,7 @@
         return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${fields['Name'] || 'N/A'}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${stockStatus}</span></div><p class="text-sm text-gray-500 mb-2">${fields['Consumable ID'] || 'N/A'}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Stock:</strong> ${fields['Current Stock'] ?? 0} / ${fields['Reorder Point'] || 'N/A'}</p><p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</td></div></div>`;
     }
     function filterAndRenderMaintenanceLogs() {
-        if (!allMaintenanceLogs.length) return;
+        if (!allMaintenanceLogs.length) { document.getElementById('maintenance-logs-table-body').innerHTML = `<tr><td colspan="5" class="text-center py-4">Loading data...</td></tr>`; return; }
         const searchTerm = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('maintenance-view-status-filter')?.value || '';
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
@@ -771,7 +648,6 @@
         document.getElementById('consumables-view-status-filter')?.addEventListener('change', filterAndRenderConsumables);
         document.getElementById('consumables-view-sort')?.addEventListener('change', filterAndRenderConsumables);
     }
-
     // --- Scanner Functions ---
     function onScanSuccess(decodedText, decodedResult) {
         stopScanner();
@@ -811,7 +687,7 @@
             alert("Scanner library not loaded.");
             return;
         }
-        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 }, videoConstraints: { facingMode: { exact: "environment" } } }, false);
         html5QrcodeScanner.render(onScanSuccess, (error) => {});
     }
     function stopScanner() {
@@ -824,7 +700,6 @@
         }
         scannerContainer.classList.add('hidden');
     }
-
     // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
     async function initializeApp() {
         const appContainer = document.getElementById('app-container');
@@ -850,10 +725,8 @@
             appContainer.innerHTML = `<p class="text-red-500 text-center">Failed to initialize the application.</p>`;
         }
     }
-
     document.addEventListener('DOMContentLoaded', () => {
         initializeApp();
-        
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -865,7 +738,6 @@
                 }
             });
         });
-
         document.getElementById('mobile-menu-button').addEventListener('click', () => {
             const mobileMenu = document.getElementById('mobile-menu');
             const icon = document.getElementById('mobile-menu-icon');
@@ -873,11 +745,9 @@
             icon.classList.toggle('fa-bars', mobileMenu.classList.contains('hidden'));
             icon.classList.toggle('fa-times', !mobileMenu.classList.contains('hidden'));
         });
-
         document.getElementById('scan-btn-desktop')?.addEventListener('click', startScanner);
         document.getElementById('scan-btn-mobile')?.addEventListener('click', startScanner);
         document.getElementById('scanner-close-btn')?.addEventListener('click', stopScanner);
-
         const backToTopBtn = document.getElementById('back-to-top-btn');
         if (backToTopBtn) {
             window.onscroll = () => {
@@ -885,10 +755,8 @@
             };
             backToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
         }
-        
         document.getElementById('close-consumables-modal-btn')?.addEventListener('click', () => document.getElementById('consumables-modal').classList.add('hidden'));
         document.getElementById('close-maintenance-logs-modal-btn')?.addEventListener('click', () => document.getElementById('maintenance-logs-modal').classList.add('hidden'));
-        
         document.getElementById('consumable-search-input')?.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filtered = currentModalConsumables.filter(c => 
