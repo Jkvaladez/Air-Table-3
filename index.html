@@ -137,7 +137,7 @@
         </main>
     </div>
     
-    <!-- Modals remain the same -->
+    <!-- Modals -->
     <div id="consumables-modal" class="modal-backdrop hidden">
         <div class="modal-content">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
@@ -214,7 +214,6 @@
     let allMachines = [];
     let allConsumables = [];
     let allMaintenanceLogs = [];
-    const dataLoaded = { machines: false, consumables: false, maintenance: false };
     let currentPage = 'dashboard';
     let expandedCards = new Set();
     let machinesToRenderCount = 10;
@@ -223,13 +222,9 @@
     let sortState = { field: 'Name', direction: 'asc' };
     
     // Utility function to fetch data from a table with exponential backoff
-    async function fetchAirtableData(tableName, filterFormula = '', retries = 3, delay = 1000) {
-        let url = `${BASE_URL}${encodeURIComponent(tableName)}`;
-        if (filterFormula) {
-            url += `?filterByFormula=${encodeURIComponent(filterFormula)}`;
-        }
+    async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
         try {
-            const response = await fetch(url, {
+            const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
                 headers: { 'Authorization': `Bearer ${airtableConfig.apiKey}` }
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -240,7 +235,7 @@
             if (retries > 0 && error.message.includes('status: 429')) {
                 console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
                 await new Promise(res => setTimeout(res, delay));
-                return fetchAirtableData(tableName, filterFormula, retries - 1, delay * 2);
+                return fetchAirtableData(tableName, retries - 1, delay * 2);
             }
             console.error(`Could not fetch data from ${tableName}:`, error);
             const container = document.getElementById('app-container');
@@ -258,7 +253,6 @@
     function navigateTo(page) {
         currentPage = page;
         
-        // Update header and active nav link
         const pageTitles = {
             dashboard: 'Airtable Dashboard',
             machines: 'Machines',
@@ -279,7 +273,7 @@
     /**
      * Renders the current page based on the currentPage global variable.
      */
-    async function renderPage() {
+    function renderPage() {
         const container = document.getElementById('app-container');
         if (!container) return;
         container.innerHTML = '';
@@ -287,11 +281,11 @@
         if (currentPage === 'dashboard') {
             renderDashboard();
         } else if (currentPage === 'machines') {
-            await renderMachinesView();
+            renderMachinesView();
         } else if (currentPage === 'maintenance') {
-            await renderMaintenanceView();
+            renderMaintenanceView();
         } else if (currentPage === 'consumables') {
-            await renderConsumablesView();
+            renderConsumablesView();
         }
     }
     
@@ -321,7 +315,7 @@
     /**
      * Renders the Machines view with its search, filters, and cards.
      */
-    async function renderMachinesView() {
+    function renderMachinesView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
@@ -379,18 +373,13 @@
         `;
         
         attachMachinesViewListeners();
-
-        if (!dataLoaded.machines) {
-            allMachines = await fetchAirtableData('Machines');
-            dataLoaded.machines = true;
-        }
-        await applyMachineFilters();
+        filterAndRenderMachines();
     }
 
     /**
      * Renders the Maintenance Logs view with search and filters.
      */
-    async function renderMaintenanceView() {
+    function renderMaintenanceView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
@@ -428,22 +417,13 @@
             </section>
         `;
         attachMaintenanceViewListeners();
-
-        if (!dataLoaded.maintenance) {
-            const [maintenanceLogs, bsvMaintenanceLogs] = await Promise.all([
-                fetchAirtableData('Maintenance Logs'),
-                fetchAirtableData('BSV Maintenance Logs')
-            ]);
-            allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
-            dataLoaded.maintenance = true;
-        }
         filterAndRenderMaintenanceLogs();
     }
     
     /**
      * Renders the Consumables view with search and filters.
      */
-    async function renderConsumablesView() {
+    function renderConsumablesView() {
         const container = document.getElementById('app-container');
         container.innerHTML = `
             <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
@@ -483,15 +463,6 @@
             </section>
         `;
         attachConsumablesViewListeners();
-
-        if (!dataLoaded.consumables) {
-            const [consumables, bsvConsumables] = await Promise.all([
-                fetchAirtableData('Consumables'),
-                fetchAirtableData('BSV 100 Consumables')
-            ]);
-            allConsumables = consumables.concat(bsvConsumables);
-            dataLoaded.consumables = true;
-        }
         filterAndRenderConsumables();
     }
 
@@ -519,7 +490,7 @@
             expandedCards.add(recordId);
         }
         localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-        applyMachineFilters(false); // Re-render without fetching
+        filterAndRenderMachines();
     }
 
     function renderMachineCards(records) {
@@ -618,32 +589,22 @@
         return aID.localeCompare(bID);
     }
     
-    async function applyMachineFilters(fetch = true) {
+    function filterAndRenderMachines() {
         const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
-        const statusFilter = document.getElementById('status-filter')?.value || document.getElementById('status-filter-mobile')?.value || '';
-        
-        let machinesToDisplay = [];
-
-        if (fetch) {
-            const container = document.getElementById('machines-container');
-            container.innerHTML = `<div class="col-span-full flex flex-col items-center justify-center py-10"><div class="loading-spinner mb-4"></div><p class="text-gray-500">Loading Machines...</p></div>`;
-            const filterFormula = statusFilter ? `({Machine Status} = '${statusFilter}')` : '';
-            machinesToDisplay = await fetchAirtableData('Machines', filterFormula);
-            allMachines = machinesToDisplay; // Update cache with filtered or full list
-        } else {
-            machinesToDisplay = allMachines;
-        }
-        
-        if (searchTerm) {
-            machinesToDisplay = machinesToDisplay.filter(record => {
-                return Object.values(record.fields).some(value => 
-                    String(value).toLowerCase().includes(searchTerm)
-                );
-            });
+        let statusFilter = document.getElementById('status-filter')?.value || '';
+        if (window.innerWidth < 640) {
+            statusFilter = document.getElementById('status-filter-mobile')?.value || statusFilter;
         }
 
-        machinesToDisplay.sort(naturalSortMachines);
-        renderMachineCards(machinesToDisplay);
+        let filteredMachines = allMachines.filter(record => {
+            const fields = record.fields;
+            const matchesSearch = Object.values(fields).some(value => String(value).toLowerCase().includes(searchTerm));
+            const matchesStatus = statusFilter ? fields['Machine Status'] === statusFilter : true;
+            return matchesSearch && matchesStatus;
+        });
+
+        filteredMachines.sort(naturalSortMachines);
+        renderMachineCards(filteredMachines);
     }
     
     // --- MODAL FUNCTIONS ---
@@ -963,18 +924,18 @@
     // --- ATTACH EVENT LISTENER FUNCTIONS ---
 
     function attachMachinesViewListeners() {
-        document.getElementById('search-input')?.addEventListener('input', () => applyMachineFilters(false));
-        document.getElementById('status-filter')?.addEventListener('change', () => applyMachineFilters(true));
-        document.getElementById('status-filter-mobile')?.addEventListener('change', () => applyMachineFilters(true));
+        document.getElementById('search-input')?.addEventListener('input', filterAndRenderMachines);
+        document.getElementById('status-filter')?.addEventListener('change', filterAndRenderMachines);
+        document.getElementById('status-filter-mobile')?.addEventListener('change', filterAndRenderMachines);
         document.getElementById('expand-all-btn')?.addEventListener('click', () => {
             allMachines.forEach(m => expandedCards.add(m.id));
             localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
-            applyMachineFilters(false);
+            filterAndRenderMachines();
         });
         document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
             expandedCards.clear();
             localStorage.setItem('expandedCards', JSON.stringify([]));
-            applyMachineFilters(false);
+            filterAndRenderMachines();
         });
         document.getElementById('toggle-filters-btn')?.addEventListener('click', (e) => {
             const content = document.getElementById('collapsible-filter-content');
@@ -983,7 +944,7 @@
         });
         document.getElementById('load-more-btn')?.addEventListener('click', () => {
             machinesToRenderCount += 10;
-            applyMachineFilters(false);
+            filterAndRenderMachines();
         });
     }
 
@@ -1002,17 +963,50 @@
     // --- GLOBAL INITIALIZATION AND EVENT LISTENERS ---
 
     async function initializeApp() {
-        navigateTo('dashboard');
+        const appContainer = document.getElementById('app-container');
+        appContainer.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-64">
+                <div class="loading-spinner mb-4"></div>
+                <p class="text-gray-600">Loading initial data, please wait...</p>
+            </div>`;
+
+        try {
+            const [
+                machines, 
+                consumables, 
+                maintenanceLogs,
+                bsvConsumables,
+                bsvMaintenanceLogs
+            ] = await Promise.all([
+                fetchAirtableData('Machines'),
+                fetchAirtableData('Consumables'),
+                fetchAirtableData('Maintenance Logs'),
+                fetchAirtableData('BSV 100 Consumables'),
+                fetchAirtableData('BSV Maintenance Logs')
+            ]);
+
+            allMachines = machines;
+            allConsumables = consumables.concat(bsvConsumables);
+            allMaintenanceLogs = maintenanceLogs.concat(bsvMaintenanceLogs);
+            
+            const savedExpanded = localStorage.getItem('expandedCards');
+            if (savedExpanded) {
+                expandedCards = new Set(JSON.parse(savedExpanded));
+            }
+            navigateTo('dashboard');
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            appContainer.innerHTML = `<p class="text-red-500 text-center">Failed to initialize the application. Please refresh the page.</p>`;
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         initializeApp();
-
+        
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 navigateTo(e.currentTarget.dataset.page);
-                // For mobile, close the menu after clicking a link
                 const mobileMenu = document.getElementById('mobile-menu');
                 if (!mobileMenu.classList.contains('hidden')) {
                     mobileMenu.classList.add('hidden');
