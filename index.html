@@ -250,7 +250,8 @@
         }
     }
 
-    // --- Navigation & Page Rendering ---
+    // --- All functions are included below ---
+    
     function navigateTo(page) {
         currentPage = page;
         const pageTitles = {
@@ -593,6 +594,7 @@
         const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
     }
+    // --- SAFE DATA LOOKUP FUNCTIONS ---
     function getLinkedMachineId(fields) {
         try {
             const machineRecordIds = fields['Machine'];
