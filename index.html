@@ -2,67 +2,789 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Airtable Connection Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airtable Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            padding-top: 4rem; /* For fixed navbar */
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #000;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            max-width: 95%;
+            max-height: 95%;
+            overflow-y: auto;
+            position: relative;
+        }
+        @media (min-width: 640px) {
+            .modal-content {
+                padding: 2rem;
+                max-width: 90%;
+                max-height: 90%;
+            }
+        }
+        #back-to-top-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            z-index: 40;
+        }
+        #back-to-top-btn.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .nav-link.active {
+            background-color: #4338ca;
+            color: white;
+        }
+        .nav-link:not(.active) {
+            color: #374151;
+        }
+        .nav-link:not(.active):hover {
+            background-color: #eef2ff;
+            color: #1f2937;
+        }
+        /* Scanner Styles */
+        #reader {
+            width: 90vw;
+            max-width: 500px;
+        }
+        #scanner-close-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 110;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 p-8">
-    <h1 class="text-3xl font-bold mb-4">Airtable Connection Test</h1>
-    <div id="status-container">
-        <p class="text-lg">Testing connection...</p>
+<body class="bg-gray-100 text-gray-800">
+
+    <nav class="bg-white shadow-md fixed top-0 left-0 right-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-gray-800">Airtable Dashboard</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#" data-page="dashboard" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                        <a href="#" data-page="machines" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Machines</a>
+                        <a href="#" data-page="maintenance" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Maintenance</a>
+                        <a href="#" data-page="consumables" class="nav-link px-3 py-2 rounded-md text-sm font-medium">Consumables</a>
+                    </div>
+                </div>
+                <div class="-mr-2 flex items-center md:hidden">
+                    <button id="scan-btn-mobile" class="text-gray-600 hover:text-indigo-600 p-2 rounded-md"><i class="fas fa-qrcode text-xl"></i></button>
+                    <button id="mobile-menu-button" type="button" class="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none" aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="sr-only">Open main menu</span>
+                        <i id="mobile-menu-icon" class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#" data-page="dashboard" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Dashboard</a>
+                <a href="#" data-page="machines" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Machines</a>
+                <a href="#" data-page="maintenance" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Maintenance</a>
+                <a href="#" data-page="consumables" class="nav-link block px-3 py-2 rounded-md text-base font-medium">Consumables</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="p-4 sm:p-8">
+        <header class="text-center mb-6 sm:mb-12">
+            <h1 id="page-title" class="text-3xl sm:text-5xl font-bold text-gray-900 mb-2">Airtable Dashboard</h1>
+            <p id="page-subtitle" class="text-md sm:text-lg text-gray-600">Viewing Data from Airtable</p>
+        </header>
+
+        <main id="app-container" class="max-w-7xl mx-auto space-y-6 sm:space-y-12">
+            </main>
     </div>
-    <div id="output-container" class="mt-4 space-y-4"></div>
+    
+    <div id="consumables-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
+                <h2 id="consumables-modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Consumables</h2>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <input type="search" id="consumable-search-input" placeholder="Search consumables..."
+                           class="w-full px-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <button id="close-consumables-modal-btn" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl sm:text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="consumables-table-wrapper" class="hidden sm:block overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Name')">Name <i class="fas fa-sort ml-1"></i></th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Consumable ID')">Consumable ID <i class="fas fa-sort ml-1"></i></th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Stock Status')">Stock Status <i class="fas fa-sort ml-1"></i></th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortModalConsumables('Current Stock')">Current Stock <i class="fas fa-sort ml-1"></i></th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div id="modal-consumables-card-view" class="block sm:hidden space-y-4 mt-4"></div>
+        </div>
+    </div>
+    
+    <div id="maintenance-logs-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
+                <h2 id="maintenance-logs-modal-title" class="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Maintenance Logs</h2>
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <input type="search" id="maintenance-log-search-input" placeholder="Search logs..."
+                           class="w-full px-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <button id="close-maintenance-logs-modal-btn" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl sm:text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="maintenance-logs-table-wrapper" class="hidden sm:block overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumable Part</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Replaced</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Service Due</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div id="modal-maintenance-logs-card-view" class="block sm:hidden space-y-4 mt-4"></div>
+        </div>
+    </div>
+
+    <div id="scanner-container" class="hidden fixed top-0 left-0 w-full h-full bg-black z-[100] flex items-center justify-center">
+        <button id="scanner-close-btn" class="text-white bg-black bg-opacity-50 rounded-full w-12 h-12 text-2xl flex items-center justify-center">
+            <i class="fas fa-times"></i>
+        </button>
+        <div id="reader"></div>
+    </div>
+
+    <button id="back-to-top-btn" class="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        <i class="fas fa-chevron-up"></i>
+    </button>
 
 <script>
+    // Airtable configuration
     const airtableConfig = {
         apiKey: 'patA8WihRZtwXarV8.d6d00c7b162757fb1b30efe56d8b58f8dbbbbb9f058e52a22fcde00e566b9956',
         baseId: 'appOKqcWBsHytL5Ae',
     };
     const BASE_URL = `https://api.airtable.com/v0/${airtableConfig.baseId}/`;
+    
+    // Global variables
+    let dataCache = {};
+    let allMachines = [];
+    let allConsumables = [];
+    let allMaintenanceLogs = [];
+    let currentPage = 'dashboard';
+    let expandedCards = new Set();
+    let machinesToRenderCount = 10;
+    let currentModalConsumables = [];
+    let currentModalMaintenanceLogs = [];
+    let sortState = { field: 'Name', direction: 'asc' };
+    let html5QrcodeScanner;
 
-    async function testFetch(tableName) {
-        const outputContainer = document.getElementById('output-container');
+    // --- All functions are included below ---
+    
+    async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
         try {
             const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
                 headers: { 'Authorization': `Bearer ${airtableConfig.apiKey}` }
             });
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status} for table ${tableName}`);
             const data = await response.json();
-            
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'p-4 bg-green-100 border border-green-300 rounded';
-            resultDiv.innerHTML = `
-                <h2 class="font-bold text-green-800">SUCCESS: Loaded ${data.records.length} records from "${tableName}"</h2>
-                <pre class="mt-2 text-xs bg-white p-2 rounded overflow-auto">${JSON.stringify(data.records.slice(0, 2), null, 2)}</pre>
-            `;
-            outputContainer.appendChild(resultDiv);
-            return true;
+            data.records.forEach(record => { dataCache[record.id] = record.fields; });
+            return data.records;
         } catch (error) {
-            console.error(`Error fetching ${tableName}:`, error);
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'p-4 bg-red-100 border border-red-300 rounded';
-            resultDiv.innerHTML = `<h2 class="font-bold text-red-800">FAILED: Could not load data from "${tableName}"</h2><p class="text-sm mt-1">Please double-check the table name is an exact, case-sensitive match and that your API key has access to this table.</p>`;
-            outputContainer.appendChild(resultDiv);
-            return false;
+            if (retries > 0 && error.message.includes('status: 429')) {
+                console.warn(`Rate limit hit for ${tableName}. Retrying in ${delay / 1000}s...`);
+                await new Promise(res => setTimeout(res, delay));
+                return fetchAirtableData(tableName, retries - 1, delay * 2);
+            }
+            console.error(`Could not fetch data from ${tableName}:`, error);
+            document.getElementById('app-container').innerHTML = `<p class="text-red-500 text-center">Failed to load data for <strong>${tableName}</strong>. Please check the table name and your API permissions.</p>`;
+            throw error;
         }
     }
 
-    async function runTest() {
-        const statusContainer = document.getElementById('status-container');
-        statusContainer.innerHTML = ''; // Clear initial message
-
-        // The three tables your app needs to function
-        const tablesToTest = [
-            'Machines',
-            'BSV 100 Consumables',
-            'BSV Maintenance Logs'
-        ];
-
-        await Promise.all(tablesToTest.map(table => testFetch(table)));
+    function navigateTo(page) {
+        currentPage = page;
+        const pageTitles = {
+            dashboard: 'Airtable Dashboard',
+            machines: 'Machines',
+            maintenance: 'Maintenance Logs',
+            consumables: 'Consumables'
+        };
+        document.getElementById('page-title').textContent = pageTitles[page] || 'Dashboard';
+        document.getElementById('page-subtitle').style.display = page === 'dashboard' ? 'block' : 'none';
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.toggle('active', link.dataset.page === page);
+        });
+        renderPage();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    function renderPage() {
+        const container = document.getElementById('app-container');
+        if (!container) return;
+        container.innerHTML = `<div class="flex justify-center items-center py-10"><div class="loading-spinner"></div></div>`;
+        if (currentPage === 'dashboard') {
+            renderDashboard();
+        } else if (currentPage === 'machines') {
+            renderMachinesView();
+        } else if (currentPage === 'maintenance') {
+            renderMaintenanceView();
+        } else if (currentPage === 'consumables') {
+            renderConsumablesView();
+        }
+    }
+    
+    function renderDashboard() {
+        const container = document.getElementById('app-container');
+        container.innerHTML = `<section class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8"><div class="bg-blue-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('machines')"><i class="fas fa-robot text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Machines</h2></div><div class="bg-green-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('maintenance')"><i class="fas fa-wrench text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Maintenance</h2></div><div class="bg-purple-500 text-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform duration-300" onclick="navigateTo('consumables')"><i class="fas fa-boxes text-4xl mb-4"></i><h2 class="text-xl sm:text-2xl font-bold">Consumables</h2></div></section>`;
+    }
+    
+    function renderMachinesView() {
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="sm:flex sm:flex-row sm:gap-6 sm:items-center"><input type="search" id="search-input" placeholder="Search machines..." class="w-full sm:flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"><div class="mt-4 sm:mt-0 w-full sm:w-auto"><select id="status-filter" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"><option value="">All Statuses</option><option value="Operational">Operational</option><option value="Under Maintenance">Under Maintenance</option><option value="Out of Service">Out of Service</option><option value="Decommissioned">Decommissioned</option></select></div></div></section><section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex items-center justify-between mb-4"><h2 class="text-2xl sm:text-3xl font-bold text-gray-900">Machines</h2><div class="flex space-x-2"><button id="expand-all-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600">Expand All</button><button id="collapse-all-btn" class="px-4 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400">Collapse All</button></div></div><div id="machines-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div><div id="load-more-container" class="flex justify-center mt-6 hidden"><button id="load-more-btn" class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700">Load More</button></div></section>`;
+        attachMachinesViewListeners();
+        filterAndRenderMachines();
     }
 
-    document.addEventListener('DOMContentLoaded', runTest);
+    function renderMaintenanceView() {
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
+        attachMaintenanceViewListeners();
+        filterAndRenderMaintenanceLogs();
+    }
+    
+    function renderConsumablesView() {
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="consumables-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="consumables-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">Show All</option><option value="Low Stock">Low Stock</option><option value="In Stock">In Stock</option><option value="Out of Stock">Out of Stock</option></select><select id="consumables-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="name">Sort by Name (A-Z)</option></select></div><div class="hidden sm:block overflow-x-auto" id="consumables-table-container"><table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Point</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Stock</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost/Unit</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Link</th></tr></thead><tbody id="consumables-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="consumables-card-view"></div></section>`;
+        attachConsumablesViewListeners();
+        filterAndRenderConsumables();
+    }
+    function getMaintenanceStatus(fields) {
+        const dueDate = fields['Next Service Due'];
+        if (!dueDate) return 'On Schedule';
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return new Date(dueDate) < today ? 'Overdue' : 'On Schedule';
+    }
+    function toggleCardExpanded(recordId) {
+        if (expandedCards.has(recordId)) {
+            expandedCards.delete(recordId);
+        } else {
+            expandedCards.add(recordId);
+        }
+        localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
+        filterAndRenderMachines();
+    }
+    function renderMachineCards(records) {
+        const container = document.getElementById('machines-container');
+        if (!container) return;
+        container.innerHTML = '';
+        const recordsToRender = records.slice(0, machinesToRenderCount);
+        if (recordsToRender.length === 0) {
+            container.innerHTML = `<p class="text-gray-500 col-span-full text-center">No machines found.</p>`;
+            return;
+        }
+        const machineFieldOrder = ['Manufacturer', 'Model', 'Serial Number', 'Part Number', 'Equipment Number', 'Year'];
+        recordsToRender.forEach(record => {
+            const fields = record.fields;
+            const recordId = record.id;
+            const card = document.createElement('div');
+            card.id = `card-${recordId}`;
+            card.className = 'bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col transform hover:scale-[1.01] transition-transform duration-200';
+            let statusBadge = '';
+            const machineStatus = fields['Machine Status'];
+            if (machineStatus === 'Under Maintenance') {
+                card.classList.add('bg-yellow-100');
+                statusBadge = `<span class="bg-yellow-300 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-wrench mr-1"></i> ${machineStatus}</span>`;
+            } else if (machineStatus === 'Out of Service') {
+                card.classList.add('bg-red-100');
+                statusBadge = `<span class="bg-red-300 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-triangle-exclamation mr-1"></i> ${machineStatus}</span>`;
+            } else if (machineStatus === 'Operational') {
+                statusBadge = `<span class="bg-green-300 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full"><i class="fas fa-circle-check mr-1"></i> ${machineStatus}</span>`;
+            } else if (machineStatus === 'Decommissioned') {
+                card.classList.add('bg-gray-300');
+                statusBadge = `<span class="bg-gray-400 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">💀 ${machineStatus}</span>`;
+            }
+            let cardHtml = `<div class="flex justify-between items-center pb-2 cursor-pointer" onclick="toggleCardExpanded('${recordId}')"><h3 class="text-lg sm:text-xl font-medium text-gray-900">${fields['Machine ID'] || 'Untitled'}</h3><div class="flex items-center space-x-2">${statusBadge}<i class="fas fa-chevron-down text-gray-500 transition-transform duration-200 ${expandedCards.has(recordId) ? 'rotate-180' : ''}"></i></div></div>`;
+            if (expandedCards.has(recordId)) {
+                cardHtml += `<div class="mt-2 space-y-1 border-t pt-2">`;
+                machineFieldOrder.forEach(fieldName => {
+                    let fieldValue = fields[fieldName];
+                    if (['Consumables', 'Machine Status', 'Machine ID'].includes(fieldName)) return;
+                    let formattedValue = Array.isArray(fieldValue) ? fieldValue.map(id => dataCache[id] ? (dataCache[id]['Name'] || id) : id).join(', ') : (fieldValue || 'N/A');
+                    cardHtml += `<p class="text-gray-600 text-sm"><span class="font-semibold">${fieldName}:</span> ${formattedValue}</p>`;
+                });
+                cardHtml += `</div>`;
+                cardHtml += `<div class="mt-4 flex flex-wrap gap-2 border-t pt-4"><button class="px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded-md shadow-sm hover:bg-blue-600" onclick="showConsumablesModal('${recordId}')"><i class="fas fa-boxes mr-1"></i> View Consumables</button><button class="px-3 py-1 bg-green-500 text-white text-sm font-semibold rounded-md shadow-sm hover:bg-green-600" onclick="showMaintenanceLogsModal('${recordId}')"><i class="fas fa-wrench mr-1"></i> View Logs</button></div>`;
+            }
+            card.innerHTML = cardHtml;
+            container.appendChild(card);
+        });
+        const loadMoreContainer = document.getElementById('load-more-container');
+        if (loadMoreContainer) {
+            loadMoreContainer.classList.toggle('hidden', machinesToRenderCount >= records.length);
+        }
+    }
+    function naturalSortMachines(a, b) {
+        const aID = a.fields['Machine ID'] || '';
+        const bID = b.fields['Machine ID'] || '';
+        const aParts = aID.match(/([^\d]*)(\d+)/);
+        const bParts = bID.match(/([^\d]*)(\d+)/);
+        if (aParts && bParts) {
+            const aText = aParts[1];
+            const bText = bParts[1];
+            if (aText.localeCompare(bText) !== 0) return aText.localeCompare(bText);
+            const aNum = parseInt(aParts[2], 10);
+            const bNum = parseInt(bParts[2], 10);
+            return aNum - bNum;
+        }
+        return aID.localeCompare(bID);
+    }
+    function filterAndRenderMachines() {
+        if (!allMachines.length) { document.getElementById('machines-container').innerHTML = `<p class="text-gray-500 col-span-full text-center">No machines found.</p>`; return; }
+        const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
+        let statusFilter = document.getElementById('status-filter')?.value || '';
+        let filteredMachines = allMachines.filter(record => {
+            const fields = record.fields;
+            const matchesSearch = Object.values(fields).some(value => String(value).toLowerCase().includes(searchTerm));
+            const matchesStatus = statusFilter ? fields['Machine Status'] === statusFilter : true;
+            return matchesSearch && matchesStatus;
+        });
+        filteredMachines.sort(naturalSortMachines);
+        renderMachineCards(filteredMachines);
+    }
+    function showConsumablesModal(machineRecordId) {
+        const machine = allMachines.find(m => m.id === machineRecordId);
+        if (!machine) return;
+        const consumableIds = machine.fields['Consumables'] || [];
+        currentModalConsumables = allConsumables.filter(c => consumableIds.includes(c.id));
+        const stockStatusPriority = { 'Out of Stock': 0, 'Low Stock': 1, 'In Stock': 2 };
+        currentModalConsumables.sort((a, b) => {
+            const aPrio = stockStatusPriority[a.fields['Stock Status']] ?? 99;
+            const bPrio = stockStatusPriority[b.fields['Stock Status']] ?? 99;
+            if (aPrio !== bPrio) return aPrio - bPrio;
+            return (a.fields.Name || '').localeCompare(b.fields.Name || '');
+        });
+        document.getElementById('consumables-modal-title').textContent = `Consumables for ${machine.fields['Machine ID'] || 'Machine'}`;
+        renderModalConsumables(currentModalConsumables);
+        document.getElementById('consumables-modal').classList.remove('hidden');
+    }
+    function renderModalConsumables(consumables) {
+        const tableBody = document.getElementById('modal-consumables-table-body');
+        const cardView = document.getElementById('modal-consumables-card-view');
+        if (!tableBody || !cardView) return;
+        const contentHtml = consumables.map(c => getModalConsumableRowHtml(c.fields)).join('');
+        tableBody.innerHTML = contentHtml || `<tr><td colspan="5" class="text-center py-4">No consumables linked.</td></tr>`;
+        const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables linked.</p>`;
+    }
+    function sortModalConsumables(field) {
+        const direction = (sortState.field === field && sortState.direction === 'asc') ? 'desc' : 'asc';
+        sortState = { field, direction };
+        currentModalConsumables.sort((a, b) => {
+            let valA = a.fields[field] || '';
+            let valB = b.fields[field] || '';
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return direction === 'asc' ? valA - valB : valB - valA;
+            }
+            return direction === 'asc' ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+        });
+        renderModalConsumables(currentModalConsumables);
+    }
+    function showMaintenanceLogsModal(machineRecordId) {
+        const machine = allMachines.find(m => m.id === machineRecordId);
+        if (!machine) return;
+        currentModalMaintenanceLogs = allMaintenanceLogs.filter(log => {
+            const machineLink = log.fields['Machine'];
+            return machineLink && machineLink.includes(machineRecordId);
+        });
+        const maintenanceStatusPriority = { 'Overdue': 0, 'On Schedule': 1 };
+        currentModalMaintenanceLogs.sort((a, b) => {
+            const aPrio = maintenanceStatusPriority[getMaintenanceStatus(a.fields)] ?? 99;
+            const bPrio = maintenanceStatusPriority[getMaintenanceStatus(b.fields)] ?? 99;
+            if (aPrio !== bPrio) return aPrio - bPrio;
+            const dateA = a.fields['Next Service Due'] ? new Date(a.fields['Next Service Due']) : 0;
+            const dateB = b.fields['Next Service Due'] ? new Date(b.fields['Next Service Due']) : 0;
+            return dateA - dateB;
+        });
+        document.getElementById('maintenance-logs-modal-title').textContent = `Maintenance Logs for ${machine.fields['Machine ID'] || 'Machine'}`;
+        renderModalMaintenanceLogs(currentModalMaintenanceLogs);
+        document.getElementById('maintenance-logs-modal').classList.remove('hidden');
+    }
+    function renderModalMaintenanceLogs(logs) {
+        const tableBody = document.getElementById('modal-maintenance-logs-table-body');
+        const cardView = document.getElementById('modal-maintenance-logs-card-view');
+        if (!tableBody || !cardView) return;
+        const tableHtml = logs.map(log => getModalMaintenanceLogRowHtml(log.fields)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="4" class="text-center py-4">No maintenance logs found.</td></tr>`;
+        const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
+    }
+    function filterAndRenderConsumables() {
+        if (!allConsumables.length) { document.getElementById('consumables-table-body').innerHTML = `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`; return; }
+        const searchTerm = document.getElementById('consumables-view-search-input')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('consumables-view-status-filter')?.value || '';
+        const sortBy = document.getElementById('consumables-view-sort')?.value || 'status';
+        const stockStatusPriority = { 'Out of Stock': 0, 'Low Stock': 1, 'In Stock': 2 };
+        let filtered = allConsumables.filter(c => {
+            const fields = c.fields;
+            const name = (fields['Name'] || '').toLowerCase();
+            const id = (fields['Consumable ID'] || '').toLowerCase();
+            const location = (fields['Location'] || '').toLowerCase();
+            const matchesSearch = name.includes(searchTerm) || id.includes(searchTerm) || location.includes(searchTerm);
+            const matchesStatus = statusFilter ? fields['Stock Status'] === statusFilter : true;
+            return matchesSearch && matchesStatus;
+        });
+        if (sortBy === 'status') {
+            filtered.sort((a, b) => {
+                const aPrio = stockStatusPriority[a.fields['Stock Status']] ?? 99;
+                const bPrio = stockStatusPriority[b.fields['Stock Status']] ?? 99;
+                if (aPrio !== bPrio) return aPrio - bPrio;
+                return (a.fields.Name || '').localeCompare(b.fields.Name || '');
+            });
+        } else if (sortBy === 'name') {
+            filtered.sort((a, b) => (a.fields.Name || '').localeCompare(b.fields.Name || ''));
+        }
+        renderAllConsumables(filtered);
+    }
+    function renderAllConsumables(consumables) {
+        const tableBody = document.getElementById('consumables-table-body');
+        const cardView = document.getElementById('consumables-card-view');
+        if (!tableBody || !cardView) return;
+        const tableHtml = consumables.map(c => getConsumableRowHtml(c.fields)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="9" class="text-center py-4">No consumables found.</td></tr>`;
+        const cardHtml = consumables.map(c => getConsumableCardHtml(c.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No consumables found.</p>`;
+    }
+    function getConsumableRowHtml(fields) {
+        const stockStatus = fields['Stock Status'];
+        let rowClass = '';
+        let statusTextClass = '';
+        if (stockStatus === 'Out of Stock') {
+            rowClass = 'bg-red-100';
+            statusTextClass = 'text-red-700 font-semibold';
+        } else if (stockStatus === 'Low Stock') {
+            rowClass = 'bg-yellow-100';
+            statusTextClass = 'text-yellow-700 font-semibold';
+        }
+        return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${stockStatus || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Reorder Point'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Current Stock'] ?? 0}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Cost/Unit'] ? `$${fields['Cost/Unit'].toFixed(2)}` : 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Unit'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Location'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline"><a href="${fields['Link'] || '#'}" target="_blank" rel="noopener noreferrer">Link</a></td></tr>`;
+    }
+    function getModalConsumableRowHtml(fields) {
+        const stockStatus = fields['Stock Status'];
+        let rowClass = '';
+        let statusTextClass = '';
+        if (stockStatus === 'Out of Stock') {
+            rowClass = 'bg-red-100';
+            statusTextClass = 'text-red-700 font-semibold';
+        } else if (stockStatus === 'Low Stock') {
+            rowClass = 'bg-yellow-100';
+            statusTextClass = 'text-yellow-700 font-semibold';
+        }
+        return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fields['Name'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Consumable ID'] || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${stockStatus || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fields['Current Stock'] ?? 0}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline"><a href="${fields['Link'] || '#'}" target="_blank" rel="noopener noreferrer">Link</a></td></tr>`;
+    }
+    function getConsumableCardHtml(fields) {
+        const stockStatus = fields['Stock Status'];
+        let statusClass = '';
+        if (stockStatus === 'Out of Stock') statusClass = 'bg-red-100 text-red-800';
+        else if (stockStatus === 'Low Stock') statusClass = 'bg-yellow-100 text-yellow-800';
+        else statusClass = 'bg-green-100 text-green-800';
+        return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${fields['Name'] || 'N/A'}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${stockStatus}</span></div><p class="text-sm text-gray-500 mb-2">${fields['Consumable ID'] || 'N/A'}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Stock:</strong> ${fields['Current Stock'] ?? 0} / ${fields['Reorder Point'] || 'N/A'}</p><p><strong>Location:</strong> ${fields['Location'] || 'N/A'}</td></div></div>`;
+    }
+    function filterAndRenderMaintenanceLogs() {
+        if (!allMaintenanceLogs.length) { document.getElementById('maintenance-logs-table-body').innerHTML = `<tr><td colspan="5" class="text-center py-4">No maintenance logs found.</td></tr>`; return; }
+        const searchTerm = document.getElementById('maintenance-view-search-input')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('maintenance-view-status-filter')?.value || '';
+        const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
+        let filtered = allMaintenanceLogs.filter(log => {
+            const status = getMaintenanceStatus(log.fields);
+            const machineId = getLinkedMachineId(log.fields);
+            const consumableName = getLinkedConsumableName(log.fields).toLowerCase();
+            const matchesSearch = consumableName.includes(searchTerm) || machineId.toLowerCase().includes(searchTerm);
+            const matchesStatus = statusFilter ? status === statusFilter : true;
+            return matchesSearch && matchesStatus;
+        });
+        const maintenanceStatusPriority = { 'Overdue': 0, 'On Schedule': 1 };
+        switch (sortBy) {
+            case 'status':
+                filtered.sort((a, b) => {
+                    const aPrio = maintenanceStatusPriority[getMaintenanceStatus(a.fields)] ?? 99;
+                    const bPrio = maintenanceStatusPriority[getMaintenanceStatus(b.fields)] ?? 99;
+                    if (aPrio !== bPrio) return aPrio - bPrio;
+                    const dateA = a.fields['Next Service Due'] ? new Date(a.fields['Next Service Due']) : 0;
+                    const dateB = b.fields['Next Service Due'] ? new Date(b.fields['Next Service Due']) : 0;
+                    return dateA - dateB;
+                });
+                break;
+            case 'dueDate':
+                filtered.sort((a, b) => {
+                    const dateA = a.fields['Next Service Due'] ? new Date(a.fields['Next Service Due']) : 0;
+                    const dateB = b.fields['Next Service Due'] ? new Date(b.fields['Next Service Due']) : 0;
+                    return dateA - dateB;
+                });
+                break;
+            case 'replacedDate':
+                filtered.sort((a, b) => {
+                    const dateA = a.fields['Last Replaced'] ? new Date(a.fields['Last Replaced']) : 0;
+                    const dateB = b.fields['Last Replaced'] ? new Date(b.fields['Last Replaced']) : 0;
+                    return dateB - dateA;
+                });
+                break;
+            case 'consumable':
+                filtered.sort((a, b) => getLinkedConsumableName(a.fields).localeCompare(getLinkedConsumableName(b.fields)));
+                break;
+            case 'machine':
+                filtered.sort((a, b) => getLinkedMachineId(a.fields).localeCompare(getLinkedMachineId(b.fields)));
+                break;
+        }
+        renderAllMaintenanceLogs(filtered);
+    }
+    function renderAllMaintenanceLogs(logs) {
+        const tableBody = document.getElementById('maintenance-logs-table-body');
+        const cardView = document.getElementById('maintenance-logs-card-view');
+        if (!tableBody || !cardView) return;
+        const tableHtml = logs.map(log => getMaintenanceLogRowHtml(log.fields)).join('');
+        tableBody.innerHTML = tableHtml || `<tr><td colspan="5" class="text-center py-4">No maintenance logs found.</td></tr>`;
+        const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
+        cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
+    }
+    // --- SAFE DATA LOOKUP FUNCTIONS ---
+    function getLinkedMachineId(fields) {
+        try {
+            const machineRecordIds = fields['Machine'];
+            if (!machineRecordIds || machineRecordIds.length === 0) return 'N/A';
+            const machineData = dataCache[machineRecordIds[0]];
+            return machineData ? machineData['Machine ID'] || 'Invalid Link' : 'Invalid Link';
+        } catch (e) { return 'Error'; }
+    }
+    function getLinkedConsumableName(fields) {
+        try {
+            const consumableRecordIds = fields['Consumable Part'];
+            if (!consumableRecordIds || consumableRecordIds.length === 0) return 'N/A';
+            const consumableData = dataCache[consumableRecordIds[0]];
+            return consumableData ? consumableData.Name || 'Invalid Link' : 'Invalid Link';
+        } catch (e) { return 'Error'; }
+    }
+    function getMaintenanceLogRowHtml(fields) {
+        const status = getMaintenanceStatus(fields);
+        let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
+        let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
+        const machineId = getLinkedMachineId(fields);
+        const consumableName = getLinkedConsumableName(fields);
+        return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${machineId}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
+    }
+    function getModalMaintenanceLogRowHtml(fields) {
+        const status = getMaintenanceStatus(fields);
+        let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
+        let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
+        const consumableName = getLinkedConsumableName(fields);
+        return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
+    }
+    function getMaintenanceLogCardHtml(fields) {
+        const status = getMaintenanceStatus(fields);
+        let statusClass = status === 'Overdue' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+        const machineId = getLinkedMachineId(fields);
+        const consumableName = getLinkedConsumableName(fields);
+        return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${consumableName}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${status}</span></div><p class="text-sm text-gray-500 mb-2">For Machine: ${machineId}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Next Service Due:</strong> ${formatDate(fields['Next Service Due'])}</p><p><strong>Last Replaced:</strong> ${formatDate(fields['Last Replaced'])}</p></div></div>`;
+    }
+    function attachMachinesViewListeners() {
+        document.getElementById('search-input')?.addEventListener('input', filterAndRenderMachines);
+        document.getElementById('status-filter')?.addEventListener('change', filterAndRenderMachines);
+        document.getElementById('expand-all-btn')?.addEventListener('click', () => {
+            allMachines.forEach(m => expandedCards.add(m.id));
+            localStorage.setItem('expandedCards', JSON.stringify([...expandedCards]));
+            filterAndRenderMachines();
+        });
+        document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
+            expandedCards.clear();
+            localStorage.setItem('expandedCards', JSON.stringify([]));
+            filterAndRenderMachines();
+        });
+        document.getElementById('load-more-btn')?.addEventListener('click', () => {
+            machinesToRenderCount += 10;
+            filterAndRenderMachines();
+        });
+    }
+    function attachMaintenanceViewListeners() {
+        document.getElementById('maintenance-view-search-input')?.addEventListener('input', filterAndRenderMaintenanceLogs);
+        document.getElementById('maintenance-view-status-filter')?.addEventListener('change', filterAndRenderMaintenanceLogs);
+        document.getElementById('maintenance-view-sort')?.addEventListener('change', filterAndRenderMaintenanceLogs);
+    }
+    function attachConsumablesViewListeners() {
+        document.getElementById('consumables-view-search-input')?.addEventListener('input', filterAndRenderConsumables);
+        document.getElementById('consumables-view-status-filter')?.addEventListener('change', filterAndRenderConsumables);
+        document.getElementById('consumables-view-sort')?.addEventListener('change', filterAndRenderConsumables);
+    }
+    function onScanSuccess(decodedText, decodedResult) {
+        stopScanner();
+        handleScanResult(decodedText);
+    }
+    function handleScanResult(scannedData) {
+        const foundMachine = allMachines.find(m => m.fields['Machine ID'] === scannedData);
+        if (foundMachine) {
+            navigateTo('machines');
+            setTimeout(() => {
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) {
+                    searchInput.value = scannedData;
+                    filterAndRenderMachines();
+                }
+            }, 100);
+            return;
+        }
+        const foundConsumable = allConsumables.find(c => c.fields['Consumable ID'] === scannedData);
+        if (foundConsumable) {
+            navigateTo('consumables');
+            setTimeout(() => {
+                const searchInput = document.getElementById('consumables-view-search-input');
+                if (searchInput) {
+                    searchInput.value = scannedData;
+                    filterAndRenderConsumables();
+                }
+            }, 100);
+            return;
+        }
+        alert(`Item not found for code: ${scannedData}`);
+    }
+    function startScanner() {
+        const scannerContainer = document.getElementById('scanner-container');
+        scannerContainer.classList.remove('hidden');
+        if (typeof Html5QrcodeScanner === "undefined") {
+            alert("Scanner library not loaded.");
+            return;
+        }
+        const config = { fps: 10, qrbox: { width: 250, height: 250 }, videoConstraints: { facingMode: { exact: "environment" } } };
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
+        html5QrcodeScanner.render(onScanSuccess, (error) => {});
+    }
+    function stopScanner() {
+        const scannerContainer = document.getElementById('scanner-container');
+        if (html5QrcodeScanner) {
+            try {
+                html5QrcodeScanner.clear().catch(err => console.error("Scanner clear failed:", err));
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
+            html5QrcodeScanner = null;
+        }
+        scannerContainer.classList.add('hidden');
+    }
+    async function initializeApp() {
+        const appContainer = document.getElementById('app-container');
+        appContainer.innerHTML = `<div class="flex flex-col items-center justify-center h-64"><div class="loading-spinner mb-4"></div><p class="text-gray-600">Loading initial data...</p></div>`;
+        try {
+            const [ machines, consumables, maintenanceLogs ] = await Promise.all([
+                fetchAirtableData('Machines'),
+                fetchAirtableData('BSV 100 Consumables'),
+                fetchAirtableData('BSV Maintenance Logs')
+            ]);
+            allMachines = machines;
+            allConsumables = consumables;
+            allMaintenanceLogs = maintenanceLogs;
+            const savedExpanded = localStorage.getItem('expandedCards');
+            if (savedExpanded) {
+                expandedCards = new Set(JSON.parse(savedExpanded));
+            }
+            navigateTo('dashboard');
+        } catch (error) {
+            console.error("Initialization failed:", error);
+        }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeApp();
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo(e.currentTarget.dataset.page);
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (!mobileMenu.classList.contains('hidden')) {
+                    mobileMenu.classList.add('hidden');
+                    document.getElementById('mobile-menu-icon').classList.replace('fa-times', 'fa-bars');
+                }
+            });
+        });
+        document.getElementById('mobile-menu-button').addEventListener('click', () => {
+            const mobileMenu = document.getElementById('mobile-menu');
+            const icon = document.getElementById('mobile-menu-icon');
+            mobileMenu.classList.toggle('hidden');
+            icon.classList.toggle('fa-bars', mobileMenu.classList.contains('hidden'));
+            icon.classList.toggle('fa-times', !mobileMenu.classList.contains('hidden'));
+        });
+        document.getElementById('scan-btn-desktop')?.addEventListener('click', startScanner);
+        document.getElementById('scan-btn-mobile')?.addEventListener('click', startScanner);
+        document.getElementById('scanner-close-btn')?.addEventListener('click', stopScanner);
+        const backToTopBtn = document.getElementById('back-to-top-btn');
+        if (backToTopBtn) {
+            window.onscroll = () => {
+                backToTopBtn.classList.toggle('show', document.body.scrollTop > 100 || document.documentElement.scrollTop > 100);
+            };
+            backToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+        }
+        document.getElementById('close-consumables-modal-btn')?.addEventListener('click', () => document.getElementById('consumables-modal').classList.add('hidden'));
+        document.getElementById('close-maintenance-logs-modal-btn')?.addEventListener('click', () => document.getElementById('maintenance-logs-modal').classList.add('hidden'));
+        document.getElementById('consumable-search-input')?.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = currentModalConsumables.filter(c => 
+                (c.fields.Name || '').toLowerCase().includes(searchTerm) ||
+                (c.fields['Consumable ID'] || '').toLowerCase().includes(searchTerm)
+            );
+            renderModalConsumables(filtered);
+        });
+        document.getElementById('maintenance-log-search-input')?.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = currentModalMaintenanceLogs.filter(log => {
+                const consumableName = getLinkedConsumableName(log.fields).toLowerCase();
+                return consumableName.includes(searchTerm);
+            });
+            renderModalMaintenanceLogs(filtered);
+        });
+    });
 </script>
+
 </body>
 </html>
