@@ -228,7 +228,8 @@
     let sortState = { field: 'Name', direction: 'asc' };
     let html5QrcodeScanner;
 
-    // --- Data Fetching ---
+    // --- All functions are included below ---
+    
     async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
         try {
             const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
@@ -250,7 +251,6 @@
         }
     }
 
-    // --- Navigation & Page Rendering ---
     function navigateTo(page) {
         currentPage = page;
         const pageTitles = {
@@ -295,7 +295,7 @@
     }
 
     function renderMaintenanceView() {
-        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6 items-center"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select><button id="debug-maintenance-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg">Debug</button></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
         attachMaintenanceViewListeners();
         filterAndRenderMaintenanceLogs();
     }
@@ -441,7 +441,7 @@
         const machine = allMachines.find(m => m.id === machineRecordId);
         if (!machine) return;
         currentModalMaintenanceLogs = allMaintenanceLogs.filter(log => {
-            const machineLink = log.fields['Machine'] || log.fields['Machine ID'];
+            const machineLink = log.fields['Machine']; // Using the confirmed field name
             return machineLink && machineLink.includes(machineRecordId);
         });
         const maintenanceStatusPriority = { 'Overdue': 0, 'On Schedule': 1 };
@@ -543,9 +543,9 @@
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
         let filtered = allMaintenanceLogs.filter(log => {
             const status = getMaintenanceStatus(log.fields);
-            const machineRecordIds = log.fields['Machine'] || log.fields['Machine ID'];
+            const machineRecordIds = log.fields['Machine'];
             const machineId = machineRecordIds && machineRecordIds.length > 0 ? (dataCache[machineRecordIds[0]]?.['Machine ID'] || '') : '';
-            const consumableRecordIds = log.fields['Consumable'] || log.fields['Consumable Part'];
+            const consumableRecordIds = log.fields['Consumable Part'];
             const consumableName = consumableRecordIds && consumableRecordIds.length > 0 ? (dataCache[consumableRecordIds[0]]?.Name || '').toLowerCase() : '';
             const matchesSearch = consumableName.includes(searchTerm) || machineId.toLowerCase().includes(searchTerm);
             const matchesStatus = statusFilter ? status === statusFilter : true;
@@ -579,18 +579,18 @@
                 break;
             case 'consumable':
                 filtered.sort((a, b) => {
-                    const consumableRecA = a.fields['Consumable'] || a.fields['Consumable Part'];
+                    const consumableRecA = a.fields['Consumable Part'];
                     const nameA = consumableRecA ? (dataCache[consumableRecA[0]]?.Name || '') : '';
-                    const consumableRecB = b.fields['Consumable'] || b.fields['Consumable Part'];
+                    const consumableRecB = b.fields['Consumable Part'];
                     const nameB = consumableRecB ? (dataCache[consumableRecB[0]]?.Name || '') : '';
                     return nameA.localeCompare(nameB);
                 });
                 break;
             case 'machine':
                 filtered.sort((a, b) => {
-                    const machineRecA = a.fields['Machine'] || a.fields['Machine ID'];
+                    const machineRecA = a.fields['Machine'];
                     const machineIdA = machineRecA ? (dataCache[machineRecA[0]]?.['Machine ID'] || '') : '';
-                    const machineRecB = b.fields['Machine'] || b.fields['Machine ID'];
+                    const machineRecB = b.fields['Machine'];
                     const machineIdB = machineRecB ? (dataCache[machineRecB[0]]?.['Machine ID'] || '') : '';
                     return machineIdA.localeCompare(machineIdB);
                 });
@@ -611,9 +611,9 @@
         const status = getMaintenanceStatus(fields);
         let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
         let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
-        const machineRecordIds = fields['Machine'] || fields['Machine ID'];
+        const machineRecordIds = fields['Machine'];
         const machineId = machineRecordIds && machineRecordIds.length > 0 ? (dataCache[machineRecordIds[0]]?.['Machine ID'] || 'N/A') : 'N/A';
-        const consumableRecordIds = fields['Consumable'] || fields['Consumable Part'];
+        const consumableRecordIds = fields['Consumable Part'];
         const consumableName = consumableRecordIds && consumableRecordIds.length > 0 ? (dataCache[consumableRecordIds[0]]?.Name || 'N/A') : 'N/A';
         return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${machineId}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
     }
@@ -621,16 +621,16 @@
         const status = getMaintenanceStatus(fields);
         let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
         let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
-        const consumableRecordIds = fields['Consumable'] || fields['Consumable Part'];
+        const consumableRecordIds = fields['Consumable Part'];
         const consumableName = consumableRecordIds && consumableRecordIds.length > 0 ? (dataCache[consumableRecordIds[0]]?.Name || 'N/A') : 'N/A';
         return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
     }
     function getMaintenanceLogCardHtml(fields) {
         const status = getMaintenanceStatus(fields);
         let statusClass = status === 'Overdue' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
-        const machineRecordIds = fields['Machine'] || fields['Machine ID'];
+        const machineRecordIds = fields['Machine'];
         const machineId = machineRecordIds && machineRecordIds.length > 0 ? (dataCache[machineRecordIds[0]]?.['Machine ID'] || 'N/A') : 'N/A';
-        const consumableRecordIds = fields['Consumable'] || fields['Consumable Part'];
+        const consumableRecordIds = fields['Consumable Part'];
         const consumableName = consumableRecordIds && consumableRecordIds.length > 0 ? (dataCache[consumableRecordIds[0]]?.Name || 'N/A') : 'N/A';
         return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${consumableName}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${status}</span></div><p class="text-sm text-gray-500 mb-2">For Machine: ${machineId}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Next Service Due:</strong> ${formatDate(fields['Next Service Due'])}</p><p><strong>Last Replaced:</strong> ${formatDate(fields['Last Replaced'])}</p></div></div>`;
     }
