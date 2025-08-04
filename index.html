@@ -543,12 +543,8 @@
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
         let filtered = allMaintenanceLogs.filter(log => {
             const status = getMaintenanceStatus(log.fields);
-            const machineRecordIds = log.fields['Machine'];
-            const machineData = machineRecordIds ? dataCache[machineRecordIds[0]] : null;
-            const machineId = machineData ? machineData['Machine ID'] || '' : '';
-            const consumableRecordIds = log.fields['Consumable Part'];
-            const consumableData = consumableRecordIds ? dataCache[consumableRecordIds[0]] : null;
-            const consumableName = (consumableData ? consumableData.Name || '' : '').toLowerCase();
+            const machineId = getLinkedMachineId(log.fields);
+            const consumableName = getLinkedConsumableName(log.fields).toLowerCase();
             const matchesSearch = consumableName.includes(searchTerm) || machineId.toLowerCase().includes(searchTerm);
             const matchesStatus = statusFilter ? status === statusFilter : true;
             return matchesSearch && matchesStatus;
@@ -580,18 +576,10 @@
                 });
                 break;
             case 'consumable':
-                filtered.sort((a, b) => {
-                    const nameA = dataCache[a.fields['Consumable Part']?.[0]]?.Name || '';
-                    const nameB = dataCache[b.fields['Consumable Part']?.[0]]?.Name || '';
-                    return nameA.localeCompare(nameB);
-                });
+                filtered.sort((a, b) => getLinkedConsumableName(a.fields).localeCompare(getLinkedConsumableName(b.fields)));
                 break;
             case 'machine':
-                filtered.sort((a, b) => {
-                    const machineIdA = dataCache[a.fields['Machine']?.[0]]?.['Machine ID'] || '';
-                    const machineIdB = dataCache[b.fields['Machine']?.[0]]?.['Machine ID'] || '';
-                    return machineIdA.localeCompare(machineIdB);
-                });
+                filtered.sort((a, b) => getLinkedMachineId(a.fields).localeCompare(getLinkedMachineId(b.fields)));
                 break;
         }
         renderAllMaintenanceLogs(filtered);
@@ -605,36 +593,42 @@
         const cardHtml = logs.map(log => getMaintenanceLogCardHtml(log.fields)).join('');
         cardView.innerHTML = cardHtml || `<p class="text-center py-4">No maintenance logs found.</p>`;
     }
+    function getLinkedMachineId(fields) {
+        try {
+            const machineRecordIds = fields['Machine'];
+            if (!machineRecordIds || machineRecordIds.length === 0) return 'N/A';
+            const machineData = dataCache[machineRecordIds[0]];
+            return machineData ? machineData['Machine ID'] || 'Invalid Link' : 'Invalid Link';
+        } catch (e) { return 'Error'; }
+    }
+    function getLinkedConsumableName(fields) {
+        try {
+            const consumableRecordIds = fields['Consumable Part'];
+            if (!consumableRecordIds || consumableRecordIds.length === 0) return 'N/A';
+            const consumableData = dataCache[consumableRecordIds[0]];
+            return consumableData ? consumableData.Name || 'Invalid Link' : 'Invalid Link';
+        } catch (e) { return 'Error'; }
+    }
     function getMaintenanceLogRowHtml(fields) {
         const status = getMaintenanceStatus(fields);
         let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
         let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
-        const machineRecordIds = fields['Machine'];
-        const machineData = machineRecordIds ? dataCache[machineRecordIds[0]] : null;
-        const machineId = machineData ? machineData['Machine ID'] || 'N/A' : 'N/A';
-        const consumableRecordIds = fields['Consumable Part'];
-        const consumableData = consumableRecordIds ? dataCache[consumableRecordIds[0]] : null;
-        const consumableName = consumableData ? consumableData.Name || 'N/A' : 'N/A';
+        const machineId = getLinkedMachineId(fields);
+        const consumableName = getLinkedConsumableName(fields);
         return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${machineId}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
     }
     function getModalMaintenanceLogRowHtml(fields) {
         const status = getMaintenanceStatus(fields);
         let rowClass = status === 'Overdue' ? 'bg-red-100' : '';
         let statusTextClass = status === 'Overdue' ? 'text-red-700 font-semibold' : '';
-        const consumableRecordIds = fields['Consumable Part'];
-        const consumableData = consumableRecordIds ? dataCache[consumableRecordIds[0]] : null;
-        const consumableName = consumableData ? consumableData.Name || 'N/A' : 'N/A';
+        const consumableName = getLinkedConsumableName(fields);
         return `<tr class="${rowClass}"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${consumableName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Last Replaced'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(fields['Next Service Due'])}</td><td class="px-6 py-4 whitespace-nowrap text-sm ${statusTextClass}">${status}</td></tr>`;
     }
     function getMaintenanceLogCardHtml(fields) {
         const status = getMaintenanceStatus(fields);
         let statusClass = status === 'Overdue' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
-        const machineRecordIds = fields['Machine'];
-        const machineData = machineRecordIds ? dataCache[machineRecordIds[0]] : null;
-        const machineId = machineData ? machineData['Machine ID'] || 'N/A' : 'N/A';
-        const consumableRecordIds = fields['Consumable Part'];
-        const consumableData = consumableRecordIds ? dataCache[consumableRecordIds[0]] : null;
-        const consumableName = consumableData ? consumableData.Name || 'N/A' : 'N/A';
+        const machineId = getLinkedMachineId(fields);
+        const consumableName = getLinkedConsumableName(fields);
         return `<div class="bg-white p-4 rounded-lg shadow"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-800">${consumableName}</h4><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass}">${status}</span></div><p class="text-sm text-gray-500 mb-2">For Machine: ${machineId}</p><div class="border-t pt-2 text-sm space-y-1 text-gray-600"><p><strong>Next Service Due:</strong> ${formatDate(fields['Next Service Due'])}</p><p><strong>Last Replaced:</strong> ${formatDate(fields['Last Replaced'])}</p></div></div>`;
     }
     function attachMachinesViewListeners() {
