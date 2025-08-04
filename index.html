@@ -228,8 +228,7 @@
     let sortState = { field: 'Name', direction: 'asc' };
     let html5QrcodeScanner;
 
-    // --- All functions are included below ---
-    
+    // --- Data Fetching ---
     async function fetchAirtableData(tableName, retries = 3, delay = 1000) {
         try {
             const response = await fetch(`${BASE_URL}${encodeURIComponent(tableName)}`, {
@@ -251,6 +250,8 @@
         }
     }
 
+    // --- All functions are included below ---
+    
     function navigateTo(page) {
         currentPage = page;
         const pageTitles = {
@@ -295,7 +296,7 @@
     }
 
     function renderMaintenanceView() {
-        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6 items-center"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select><button id="debug-maintenance-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg">Debug</button></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
+        document.getElementById('app-container').innerHTML = `<section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg"><div class="flex flex-col sm:flex-row gap-4 mb-6"><input type="search" id="maintenance-view-search-input" placeholder="Search..." class="flex-grow px-4 py-2 rounded-lg border focus:ring-indigo-500"><select id="maintenance-view-status-filter" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="">All Statuses</option><option value="Overdue">Overdue</option><option value="On Schedule">On Schedule</option></select><select id="maintenance-view-sort" class="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white focus:ring-indigo-500"><option value="status">Sort by Status</option><option value="dueDate">Sort by Due Date</option><option value="consumable">Sort by Consumable</option><option value="machine">Sort by Machine ID</option><option value="replacedDate">Sort by Last Replaced</option></select></div><div class="hidden sm:block overflow-x-auto" id="maintenance-logs-table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consumable Part</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Replaced</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Service Due</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead><tbody id="maintenance-logs-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div><div class="block sm:hidden space-y-4 mt-4" id="maintenance-logs-card-view"></div></section>`;
         attachMaintenanceViewListeners();
         filterAndRenderMaintenanceLogs();
     }
@@ -652,14 +653,6 @@
         document.getElementById('maintenance-view-search-input')?.addEventListener('input', filterAndRenderMaintenanceLogs);
         document.getElementById('maintenance-view-status-filter')?.addEventListener('change', filterAndRenderMaintenanceLogs);
         document.getElementById('maintenance-view-sort')?.addEventListener('change', filterAndRenderMaintenanceLogs);
-        document.getElementById('debug-maintenance-btn')?.addEventListener('click', () => {
-            console.log("--- DEBUGGING MAINTENANCE LOGS ---");
-            if (allMaintenanceLogs && allMaintenanceLogs.length > 0) {
-                console.log("Sample record (allMaintenanceLogs[0]):", allMaintenanceLogs[0]);
-            } else {
-                console.log("allMaintenanceLogs array is empty or not yet loaded.");
-            }
-        });
     }
     function attachConsumablesViewListeners() {
         document.getElementById('consumables-view-search-input')?.addEventListener('input', filterAndRenderConsumables);
