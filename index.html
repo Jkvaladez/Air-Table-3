@@ -441,7 +441,7 @@
         const machine = allMachines.find(m => m.id === machineRecordId);
         if (!machine) return;
         currentModalMaintenanceLogs = allMaintenanceLogs.filter(log => {
-            const machineLink = log.fields['Machine']; // Using the confirmed field name
+            const machineLink = log.fields['Machine'];
             return machineLink && machineLink.includes(machineRecordId);
         });
         const maintenanceStatusPriority = { 'Overdue': 0, 'On Schedule': 1 };
@@ -543,9 +543,9 @@
         const sortBy = document.getElementById('maintenance-view-sort')?.value || 'status';
         let filtered = allMaintenanceLogs.filter(log => {
             const status = getMaintenanceStatus(log.fields);
-            const machineRecordIds = log.fields['Machine'];
+            const machineRecordIds = log.fields['Machine']; // Using specific field name
             const machineId = machineRecordIds && machineRecordIds.length > 0 ? (dataCache[machineRecordIds[0]]?.['Machine ID'] || '') : '';
-            const consumableRecordIds = log.fields['Consumable Part'];
+            const consumableRecordIds = log.fields['Consumable Part']; // Using specific field name
             const consumableName = consumableRecordIds && consumableRecordIds.length > 0 ? (dataCache[consumableRecordIds[0]]?.Name || '').toLowerCase() : '';
             const matchesSearch = consumableName.includes(searchTerm) || machineId.toLowerCase().includes(searchTerm);
             const matchesStatus = statusFilter ? status === statusFilter : true;
@@ -579,19 +579,15 @@
                 break;
             case 'consumable':
                 filtered.sort((a, b) => {
-                    const consumableRecA = a.fields['Consumable Part'];
-                    const nameA = consumableRecA ? (dataCache[consumableRecA[0]]?.Name || '') : '';
-                    const consumableRecB = b.fields['Consumable Part'];
-                    const nameB = consumableRecB ? (dataCache[consumableRecB[0]]?.Name || '') : '';
+                    const nameA = dataCache[a.fields['Consumable Part']?.[0]]?.Name || '';
+                    const nameB = dataCache[b.fields['Consumable Part']?.[0]]?.Name || '';
                     return nameA.localeCompare(nameB);
                 });
                 break;
             case 'machine':
                 filtered.sort((a, b) => {
-                    const machineRecA = a.fields['Machine'];
-                    const machineIdA = machineRecA ? (dataCache[machineRecA[0]]?.['Machine ID'] || '') : '';
-                    const machineRecB = b.fields['Machine'];
-                    const machineIdB = machineRecB ? (dataCache[machineRecB[0]]?.['Machine ID'] || '') : '';
+                    const machineIdA = dataCache[a.fields['Machine']?.[0]]?.['Machine ID'] || '';
+                    const machineIdB = dataCache[b.fields['Machine']?.[0]]?.['Machine ID'] || '';
                     return machineIdA.localeCompare(machineIdB);
                 });
                 break;
@@ -656,6 +652,14 @@
         document.getElementById('maintenance-view-search-input')?.addEventListener('input', filterAndRenderMaintenanceLogs);
         document.getElementById('maintenance-view-status-filter')?.addEventListener('change', filterAndRenderMaintenanceLogs);
         document.getElementById('maintenance-view-sort')?.addEventListener('change', filterAndRenderMaintenanceLogs);
+        document.getElementById('debug-maintenance-btn')?.addEventListener('click', () => {
+            console.log("--- DEBUGGING MAINTENANCE LOGS ---");
+            if (allMaintenanceLogs && allMaintenanceLogs.length > 0) {
+                console.log("Sample record (allMaintenanceLogs[0]):", allMaintenanceLogs[0]);
+            } else {
+                console.log("allMaintenanceLogs array is empty or not yet loaded.");
+            }
+        });
     }
     function attachConsumablesViewListeners() {
         document.getElementById('consumables-view-search-input')?.addEventListener('input', filterAndRenderConsumables);
@@ -780,7 +784,7 @@
         document.getElementById('maintenance-log-search-input')?.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filtered = currentModalMaintenanceLogs.filter(log => {
-                const consumableRecordIds = log.fields['Consumable'] || log.fields['Consumable Part'];
+                const consumableRecordIds = log.fields['Consumable Part'];
                 const consumableName = consumableRecordIds ? (dataCache[consumableRecordIds[0]]?.Name || '').toLowerCase() : '';
                 return consumableName.includes(searchTerm);
             });
